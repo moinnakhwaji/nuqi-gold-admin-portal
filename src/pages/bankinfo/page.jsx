@@ -69,6 +69,26 @@ const BankInfoPage = () => {
     );
   }
 
+  // Show empty state when no bank info records
+  if (bankList.length === 0) {
+    return (
+      <div
+        className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+          currentMode === "Dark"
+            ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
+            : "bg-white shadow-lg"
+        }`}
+      >
+        <Header category="Page" title="Bank Information" />
+        <EmptyState
+          title="No Bank Information Found"
+          message="Bank information records will appear here once they are added to the system."
+          iconType="document"
+        />
+      </div>
+    );
+  }
+
   const headerBgClass =
     currentMode === "Dark"
       ? "bg-transparent border border-gray-700"

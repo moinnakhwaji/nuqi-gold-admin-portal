@@ -9,7 +9,10 @@ import {
   useGetOnHoldBankKycMutation,
 } from '../../redux/slices/Bankverification/bankverificationapi';
 import FullScreenLoader from '../../components/FullScreenLoader';
+import EmptyState from '../../components/EmptyState';
+import Header from '../../components/Header';
 import ReasonModal from '../../components/ReasonModal';
+import BankDetailModal from '../../components/bankverification/BankDetailModal';
 import { parse } from '../../lib/utils';
 
 // Column definitions for the main data table
@@ -261,13 +264,102 @@ const BankVerification = () => {
 
   const transformDocumentUrl = (url) => url?.replace(':7777/', ':7000/');
 
+  // Show loading state
+  if (isLoading || isFetching) {
+    return (
+      <div className="p-6 bg-gray-50 min-h-screen font-['Poppins']">
+        <ToastContainer />
+        <Header category="Page" title="Bank KYC Verification" />
+        <FullScreenLoader />
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="p-6 bg-gray-50 min-h-screen font-['Poppins']">
+        <ToastContainer />
+        <Header category="Page" title="Bank KYC Verification" />
+        <EmptyState
+          variant="error"
+          title="Unable to Load Bank KYC Data"
+          message="We encountered an issue while loading the bank KYC data. Please try refreshing the page or contact support if the problem persists."
+          buttonText="Refresh Page"
+          onButtonClick={refetch}
+        />
+      </div>
+    );
+  }
+
+  // Show empty state when no data at all
+  if (!bankKycData?.data || bankKycData.data.length === 0) {
+    return (
+      <div className="p-6 bg-gray-50 min-h-screen font-['Poppins']">
+        <ToastContainer />
+        <Header category="Page" title="Bank KYC Verification" />
+        <EmptyState
+          title="No Bank KYC Records Found"
+          message="Bank KYC records will appear here once they are submitted."
+          iconType="document"
+        />
+      </div>
+    );
+  }
+
+  // Show simplified view when no records for current tab
+  if (filteredData.length === 0 && !searchTerm) {
+    return (
+      <div className="p-6 bg-gray-50 min-h-screen font-['Poppins']">
+        <ToastContainer />
+        <Header category="Page" title="Bank KYC Verification" />
+        
+        {/* Only show tabs when no records */}
+        <div className="bg-white p-4 rounded-lg shadow-md">
+          <div className="flex justify-start mb-4 gap-4 p-2">
+            {['pending', 'approved', 'rejected', 'on_hold'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => handleTabChange(tab)}
+                className={`capitalize w-[200px] py-3 text-sm font-medium rounded-lg transition-all ${
+                  selectedTab === tab ? 'bg-amber-500 text-white shadow-md' : 'border border-amber-500 text-amber-500 hover:bg-amber-50'
+                }`}
+              >
+                {tab.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+          
+          <EmptyState
+            title="No Records Found"
+            message={`No records found for ${selectedTab.replace('_', ' ')} status.`}
+            iconType="document"
+            showRefreshButton
+            buttonText="Refresh Records"
+            onButtonClick={refetch}
+            className="py-16"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen font-['Poppins']">
-      {(isLoading || isFetching) && <FullScreenLoader />}
       <ToastContainer />
+      <Header category="Page" title="Bank KYC Verification" />
       
+      {/* Search and Export Controls */}
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Bank KYC Dashboard</h1>
+        <div className="relative w-[500px]">
+          <input
+            type="text"
+            placeholder="Search by Name, User Id, or Account Number"
+            className="w-full px-4 py-3 bg-white rounded-lg border focus:ring-2 focus:ring-blue-500"
+            value={searchTerm}
+            onChange={handleSearch}
+          />
+        </div>
         <div className="flex gap-4">
           <button onClick={refetch} className="px-6 py-2 flex items-center gap-2 bg-white hover:bg-gray-100 rounded-lg border">
             Refresh
@@ -278,16 +370,7 @@ const BankVerification = () => {
         </div>
       </div>
 
-      <div className="relative w-[500px] mb-6">
-        <input
-          type="text"
-          placeholder="Search by Name, User Id, or Account Number"
-          className="w-full px-4 py-3 bg-white rounded-lg border focus:ring-2 focus:ring-blue-500"
-          value={searchTerm}
-          onChange={handleSearch}
-        />
-      </div>
-
+      {/* Main content */}
       <div className="bg-white p-4 rounded-lg shadow-md">
         <div className="flex justify-start mb-4 gap-4 p-2">
           {['pending', 'approved', 'rejected', 'on_hold'].map(tab => (
@@ -303,23 +386,31 @@ const BankVerification = () => {
           ))}
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr>
-                {columns.map((col) => (
-                  <th key={col.id} className="p-4 bg-gray-100 text-left cursor-pointer" onClick={() => handleSort(col.id)}>
-                    {col.label}
-                    {selectedColumn === col.id && (sortOrder === 'asc' ? ' ↑' : ' ↓')}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.length === 0 ? (
-                <tr><td colSpan={columns.length} className="text-center py-12">No Records Available</td></tr>
-              ) : (
-                filteredData.map((user) => (
+        {filteredData.length === 0 && searchTerm ? (
+          <EmptyState
+            title="No Records Found"
+            message="No records match your search criteria. Try adjusting your search terms."
+            iconType="search"
+            showRefreshButton
+            buttonText="Clear Search"
+            onButtonClick={() => setSearchTerm('')}
+            className="py-16"
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  {columns.map((col) => (
+                    <th key={col.id} className="p-4 bg-gray-100 text-left cursor-pointer" onClick={() => handleSort(col.id)}>
+                      {col.label}
+                      {selectedColumn === col.id && (sortOrder === 'asc' ? ' ↑' : ' ↓')}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredData.map((user) => (
                   <tr key={user.user_id} className="border-b hover:bg-gray-50">
                     <td className="p-4">{user.relevantBankDetail?.id}</td>
                     <td className="p-4">{user.relevantBankDetail?.user_id}</td>
@@ -337,98 +428,33 @@ const BankVerification = () => {
                       </button>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
       
-      {isModalOpen && selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-xl max-w-3xl w-[90%] max-h-[80vh] overflow-y-auto">
-            <h2 className="text-xl mb-4 text-center font-bold">
-              Bank Details History - {selectedUser.user_id}
-            </h2>
-            {selectedUser.allBankDetails.map((detail, index) => {
-                const kycRecord = selectedUser.kycRecords.find(kyc => kyc.BankId === detail.id);
-                return (
-                  <div key={detail.id} className={`mb-6 p-6 border rounded-lg ${index === 0 ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className={`font-bold ${index === 0 ? 'text-blue-800' : ''}`}>{index === 0 ? 'Latest Record' : `Previous Record`}</h3>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                          <p className="text-sm text-gray-500 mb-1">Holder Name</p>
-                          {index === 0 && isEditable ? <input name="holder_name" value={editedDetails.holder_name} onChange={handleInputChange} className="w-full p-2 border rounded"/> : <p>{detail.holder_name || 'N/A'}</p>}
-                      </div>
-                      <div>
-                          <p className="text-sm text-gray-500 mb-1">Account Number</p>
-                          {index === 0 && isEditable ? <input name="account_number" value={editedDetails.account_number} onChange={handleInputChange} className="w-full p-2 border rounded"/> : <p>{detail.account_number || 'N/A'}</p>}
-                      </div>
-                      <div>
-                          <p className="text-sm text-gray-500 mb-1">Bank Name</p>
-                          {index === 0 && isEditable ? <input name="bank_name" value={editedDetails.bank_name} onChange={handleInputChange} className="w-full p-2 border rounded"/> : <p>{detail.bank_name || 'N/A'}</p>}
-                      </div>
-                       <div>
-                          <p className="text-sm text-gray-500 mb-1">Branch Name</p>
-                          {index === 0 && isEditable ? <input name="branch_name" value={editedDetails.branch_name} onChange={handleInputChange} className="w-full p-2 border rounded"/> : <p>{detail.branch_name || 'N/A'}</p>}
-                      </div>
-                      <div>
-                          <p className="text-sm text-gray-500 mb-1">IFSC/IBAN Code</p>
-                          {index === 0 && isEditable ? <input name="ifsc_code" value={editedDetails.ifsc_code} onChange={handleInputChange} className="w-full p-2 border rounded"/> : <p>{detail.ifsc_code || 'N/A'}</p>}
-                      </div>
-                      <div>
-                          <p className="text-sm text-gray-500 mb-1">Status</p>
-                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusClasses(detail.account_status)}`}>
-                                {detail.account_status}
-                           </span>
-                      </div>
-                    </div>
-                    
-                    {kycRecord && (
-                      <div className="mt-8 pt-4 border-t">
-                        <h4 className="mb-4 text-gray-500">KYC Document</h4>
-                        <a href={transformDocumentUrl(kycRecord.proofdoc)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View Document</a>
-                      </div>
-                    )}
-
-                    {index === 0 && (
-                      <div className="mt-8 flex gap-2 justify-end">
-                        {!isEditable ? (
-                          <>
-                            {detail.account_status === 'UNDER_REVIEW' && kycRecord && (
-                                <>
-                                    <button onClick={() => handleEditClick(detail)} className="px-4 py-2 bg-blue-500 text-white rounded-lg">Edit</button>
-                                    <button onClick={() => { setSelectedKycId(kycRecord.id); setIsReasonModalOpen(true); }} className="px-4 py-2 bg-orange-500 text-white rounded-lg">On Hold</button>
-                                    <button onClick={() => handleUpdateKycStatus('APPROVED', kycRecord.id)} className="px-4 py-2 bg-green-500 text-white rounded-lg">Approve</button>
-                                    <button onClick={() => handleUpdateKycStatus('REJECTED', kycRecord.id)} className="px-4 py-2 bg-red-500 text-white rounded-lg">Reject</button>
-                                </>
-                            )}
-                            {detail.account_status?.toLowerCase() === 'on_hold' && (
-                                <button onClick={() => handleSendReminder(detail)} disabled={isSendingReminder} className="px-4 py-2 bg-blue-500 text-white rounded-lg flex items-center gap-2">
-                                    {isSendingReminder ? 'Sending...' : <><FaBell/> Send Reminder</>}
-                                </button>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <button onClick={() => handleSaveChanges(detail)} disabled={isUpdatingBankDetails} className="px-4 py-2 bg-green-500 text-white rounded-lg">{isUpdatingBankDetails ? 'Saving...' : 'Save'}</button>
-                            <button onClick={handleCancelEdit} className="px-4 py-2 bg-gray-500 text-white rounded-lg">Cancel</button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-            })}
-            <div className="mt-8 flex justify-end">
-              <button onClick={closeModal} className="px-6 py-2 bg-gray-100 rounded-lg border">Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+       <BankDetailModal
+         isOpen={isModalOpen}
+         selectedUser={selectedUser}
+         isEditable={isEditable}
+         editedDetails={editedDetails}
+         isUpdatingBankDetails={isUpdatingBankDetails}
+         isSendingReminder={isSendingReminder}
+         onClose={closeModal}
+         onInputChange={handleInputChange}
+         onEditClick={handleEditClick}
+         onSaveChanges={handleSaveChanges}
+         onCancelEdit={handleCancelEdit}
+         onUpdateKycStatus={handleUpdateKycStatus}
+         onSendReminder={handleSendReminder}
+         onReasonModalOpen={(kycId) => {
+           setSelectedKycId(kycId);
+           setIsReasonModalOpen(true);
+         }}
+         transformDocumentUrl={transformDocumentUrl}
+       />
 
       <ReasonModal
         isOpen={isReasonModalOpen}
