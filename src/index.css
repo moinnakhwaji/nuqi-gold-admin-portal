@@ -1,0 +1,124 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap");
+
+@import "tailwindcss";
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Poppins", sans-serif;
+}
+
+
+
+/* Remove hover effect from table headers */
+th:hover {
+  background-color: transparent !important;
+}
+
+/* Utility to hide scrollbars on an element but keep it scrollable */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+
+/* Add these styles to your App.css file */
+
+/* Toast Container Styles */
+.Toastify__toast-container {
+  z-index: 9999 !important;
+  position: fixed !important;
+}
+
+/* Toast Styles */
+.Toastify__toast {
+  min-height: 50px !important;
+  font-size: 14px !important;
+  font-family: inherit !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  margin-bottom: 8px !important;
+}
+
+/* Toast Body */
+.toast-body {
+  padding: 12px 16px !important;
+  line-height: 1.4 !important;
+}
+
+/* Toast Progress Bar */
+.toast-progress {
+  height: 3px !important;
+}
+
+/* Success Toast */
+.Toastify__toast--success {
+  background-color: #10b981 !important;
+  color: white !important;
+}
+
+/* Error Toast */
+.Toastify__toast--error {
+  background-color: #ef4444 !important;
+  color: white !important;
+}
+
+/* Warning Toast */
+.Toastify__toast--warning {
+  background-color: #f59e0b !important;
+  color: white !important;
+}
+
+/* Info Toast */
+.Toastify__toast--info {
+  background-color: #3b82f6 !important;
+  color: white !important;
+}
+
+/* Loading Toast */
+.Toastify__toast--loading {
+  background-color: #6b7280 !important;
+  color: white !important;
+}
+
+/* Close Button */
+.Toastify__close-button {
+  color: rgba(255, 255, 255, 0.8) !important;
+  opacity: 0.8 !important;
+}
+
+.Toastify__close-button:hover {
+  opacity: 1 !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .Toastify__toast-container {
+    width: calc(100vw - 32px) !important;
+    left: 16px !important;
+    right: 16px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .Toastify__toast {
+    margin-bottom: 4px !important;
+    border-radius: 6px !important;
+  }
+}
+
+/* Ensure toasts appear above sidebar and navbar */
+@media (min-width: 769px) {
+  .Toastify__toast-container--bottom-right {
+    bottom: 20px !important;
+    right: 20px !important;
+  }
+}
+
+/* For your specific layout with sidebar */
+.Toastify__toast-container--bottom-right {
+  position: fixed !important;
+  z-index: 10000 !important; /* Higher than sidebar z-index */
+}
