@@ -13,7 +13,6 @@ import RiskProfilePage from "./pages/riskprofile/page";
 import OrderbookTransactionsPage from "./pages/orderbooktransactions/page";
 import WalletPage from "./pages/wallet/page";
 import BankInfoPage from "./pages/bankinfo/page";
-import BankKycPage from "./pages/bank-kyc/page";
 import PortfolioPage from "./pages/portfolio/page";
 import PortfolioAnalysisDetails from "./pages/portfolioanalysisdetails/page";
 import CepBasketPage from "./pages/cepbasket/page";
@@ -107,7 +106,6 @@ const App = () => {
             <Route path="/childreason" element={< Childreason/>} />
             <Route path="/wallet" element={<WalletPage />} />
             <Route path="/bankinfo" element={<BankInfoPage />} />
-            <Route path="/bank-kyc" element={<BankKycPage />} />
             <Route path="/portfolio" element={<PortfolioPage />} />
             <Route path="/cepbasket" element={<CepBasketPage />} />
             <Route path="/stocksmanager" element={<StocksManagerPage />} />

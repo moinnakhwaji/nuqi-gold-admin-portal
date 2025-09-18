@@ -2,116 +2,145 @@ import React, { useState, useEffect } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { FaEye, FaBell } from 'react-icons/fa';
+import { useStateContext } from '../../contexts/ContextProvider';
 import {
   useGetBankKycQuery,
   useUpdateBankDetailsMutation,
   useUpdateKycRecordStatusMutation,
   useGetOnHoldBankKycMutation,
+  useLazyExportBankKycRecordsQuery,
 } from '../../redux/slices/Bankverification/bankverificationapi';
-import FullScreenLoader from '../../components/FullScreenLoader';
 import EmptyState from '../../components/EmptyState';
 import Header from '../../components/Header';
+import SearchBox from '../../components/SearchBox';
+import Pagination from '../../components/Pagination';
 import ReasonModal from '../../components/ReasonModal';
 import BankDetailModal from '../../components/bankverification/BankDetailModal';
-import { parse } from '../../lib/utils';
+import ExportCSVButton from '../../components/ExportCSVButton';
+import SortableTableHeader from '../../components/SortableTableHeader';
 
-// Column definitions for the main data table
-const columns = [
-  { id: 'id', label: 'BANK KYC ID', minWidth: '170px' },
-  { id: 'user_id', label: 'User ID', minWidth: '100px' },
-  { id: 'account_number', label: 'Account Number', minWidth: '150px' },
-  { id: 'holder_name', label: 'Holder Name', minWidth: '150px' },
-  { id: 'createdAt', label: 'Created At', minWidth: '120px' },
-  { id: 'status', label: 'Status', minWidth: '120px' },
-  { id: 'actions', label: 'Actions', minWidth: '100px' },
-];
 
 // Helper to determine tailwind classes based on KYC status
 const getStatusClasses = (status) => {
-  switch (status) {
+  switch (status?.toUpperCase()) {
     case 'APPROVED':
       return 'bg-green-100 text-green-800 border border-green-300';
     case 'REJECTED':
       return 'bg-red-100 text-red-800 border border-red-300';
     case 'ON_HOLD':
       return 'bg-orange-100 text-orange-800 border border-orange-300';
-    default:
+    case 'UNDER_REVIEW':
       return 'bg-amber-100 text-amber-800 border border-amber-300';
+    default:
+      return 'bg-gray-100 text-gray-800 border border-gray-300';
   }
 };
 
 const BankVerification = () => {
-  // RTK Query hooks for data fetching and mutations
-  const { data: bankKycData, error, isLoading, isFetching, refetch } = useGetBankKycQuery();
-  const [updateBankDetails, { isLoading: isUpdatingBankDetails }] = useUpdateBankDetailsMutation();
-  const [updateKycRecordStatus] = useUpdateKycRecordStatusMutation();
-  const [getOnHoldBankKyc, { isLoading: isSendingReminder }] = useGetOnHoldBankKycMutation();
-
+  const { currentMode } = useStateContext();
+  
   // Component state management
-  const [filteredData, setFilteredData] = useState([]);
-  const [selectedTab, setSelectedTab] = useState('pending');
+  const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [selectedTab, setSelectedTab] = useState('pending');
+  const [sortField, setSortField] = useState('createdAt');
+  const [sortDirection, setSortDirection] = useState('desc');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [sortOrder, setSortOrder] = useState('asc');
-  const [selectedColumn, setSelectedColumn] = useState('');
   const [isEditable, setIsEditable] = useState(false);
   const [editedDetails, setEditedDetails] = useState({});
   const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
   const [selectedKycId, setSelectedKycId] = useState(null);
 
-  // Processes raw data to find the most relevant bank detail for display in the table
-  const processDataWithRelevantDetails = (dataToProcess = []) => {
-    return dataToProcess.map((user) => {
-      const sortedBankDetails = [...(user.bankDetails || [])].sort((a, b) => {
-        if (a.account_status === 'PENDING' && b.account_status !== 'PENDING') return 1;
-        if (b.account_status === 'PENDING' && a.account_status !== 'PENDING') return -1;
-        return new Date(b.createdAt) - new Date(a.createdAt);
-      });
-      return {
-        ...user,
-        relevantBankDetail: sortedBankDetails[0],
-        allBankDetails: sortedBankDetails,
-      };
-    });
+  // Map frontend tab names to backend type values (matching your new API)
+  const getTypeFromTab = (tab) => {
+    switch (tab) {
+      case 'pending':
+        return 'PENDING';
+      case 'approved':
+        return 'APPROVED';
+      case 'rejected':
+        return 'REJECTED';
+      case 'on_hold':
+        return 'ON_HOLD';
+      default:
+        return null;
+    }
   };
 
-  // Effect to filter and sort data when RTK Query data, tab, or search term changes
+  // Debounced search effect
   useEffect(() => {
-    if (bankKycData) {
-      const allData = bankKycData.data || [];
-      const processedData = processDataWithRelevantDetails(allData);
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+    }, 500);
 
-      const filterByTab = (data) => {
-        return data.filter((user) => {
-          const status = user.relevantBankDetail?.account_status?.toUpperCase();
-          switch (selectedTab) {
-            case 'approved': return status === 'APPROVED';
-            case 'rejected': return status === 'REJECTED';
-            case 'on_hold': return status === 'ON_HOLD';
-            default: return status === 'UNDER_REVIEW';
-          }
-        });
-      };
-      const tabFilteredData = filterByTab(processedData);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-      if (searchTerm) {
-        const searchFiltered = tabFilteredData.filter((user) => {
-          const detail = user.relevantBankDetail;
-          return (
-            detail?.holder_name?.toLowerCase().includes(searchTerm) ||
-            detail?.user_id?.toLowerCase().includes(searchTerm) ||
-            detail?.account_number?.toLowerCase().includes(searchTerm)
-          );
-        });
-        setFilteredData(searchFiltered);
-      } else {
-        setFilteredData(tabFilteredData);
+  // RTK Query hooks for data fetching and mutations
+  const { data: bankKycData, error, isLoading, isFetching, refetch } = useGetBankKycQuery({
+    page: currentPage,
+    search: debouncedSearchTerm,
+    type: getTypeFromTab(selectedTab),
+  });
+  const [updateBankDetails, { isLoading: isUpdatingBankDetails }] = useUpdateBankDetailsMutation();
+  const [updateKycRecordStatus] = useUpdateKycRecordStatusMutation();
+  const [getOnHoldBankKyc, { isLoading: isSendingReminder }] = useGetOnHoldBankKycMutation();
+
+  // Minimal data processing - backend provides all formatted data
+  const processDataWithRelevantDetails = (dataToProcess = []) => {
+    return dataToProcess.map((bankDetail) => ({
+      user_id: bankDetail.userId,
+      fullName: bankDetail.fullName,
+      relevantBankDetail: bankDetail,
+      allBankDetails: bankDetail.previousBankRecords || [bankDetail],
+      kycRecords: bankDetail.kycRecords || [],
+    }));
+  };
+
+  // Process server data and calculate pagination
+  const bankKycRecords = bankKycData?.data || [];
+  const totalRecords = bankKycData?.totalRecords || 0;
+  const backendLimit = bankKycData?.limit || 10;
+  const totalPages = bankKycData?.totalPages || Math.ceil(totalRecords / backendLimit);
+
+  const processedData = processDataWithRelevantDetails(bankKycRecords);
+  
+  // Sorting function
+  const sortRecords = (records, field, direction) =>
+    [...records].sort((a, b) => {
+      let aValue = a.relevantBankDetail?.[field] || a[field];
+      let bValue = b.relevantBankDetail?.[field] || b[field];
+
+      if (aValue === null || aValue === undefined) aValue = "";
+      if (bValue === null || bValue === undefined) bValue = "";
+
+      if (field === "createdAt" || field === "updatedAt") {
+        aValue = aValue ? new Date(aValue).getTime() : 0;
+        bValue = bValue ? new Date(bValue).getTime() : 0;
       }
-    }
-  }, [bankKycData, selectedTab, searchTerm]);
 
-  // Effect to show toast notifications on API errors
+      if (typeof aValue === "string" && aValue !== "") {
+        aValue = aValue.toLowerCase();
+      }
+      if (typeof bValue === "string" && bValue !== "") {
+        bValue = bValue.toLowerCase();
+      }
+
+      if (direction === "asc") {
+        if (aValue > bValue) return 1;
+        if (aValue < bValue) return -1;
+        return 0;
+      }
+      if (aValue < bValue) return 1;
+      if (aValue > bValue) return -1;
+      return 0;
+    });
+
+  const sortedData = sortRecords(processedData, sortField, sortDirection);
+  const filteredData = sortedData;
+
   useEffect(() => {
     if (error) {
       toast.error('Failed to fetch KYC data.');
@@ -119,23 +148,40 @@ const BankVerification = () => {
     }
   }, [error]);
 
-  const handleTabChange = (tab) => setSelectedTab(tab);
-  const handleSearch = (event) => setSearchTerm(event.target.value.toLowerCase());
+  const handleTabChange = (tab) => {
+    setSelectedTab(tab);
+    setCurrentPage(1); 
+  };
+
+  const handleSearch = (event) => {
+    setSearchTerm(event.target.value.trim());
+    setCurrentPage(1); 
+  };
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+    setCurrentPage(1);
+  };
 
   const openModal = (user) => {
-    if (!user || !Array.isArray(user.bankDetails) || user.bankDetails.length === 0) {
+    if (!user || !user.relevantBankDetail) {
       toast.error('This user has no bank details to view.');
       return;
     }
+    
+    // Backend now provides all bank details and KYC records directly
     setSelectedUser(user);
     setIsModalOpen(true);
   };
-  console.log("selected user", selectedUser);
-  console.log("all bank details", {
-    userId: selectedUser?.user_id,
-    bankId: selectedUser?.allBankDetails[0]?.id,
-   
-  });
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -164,7 +210,6 @@ const BankVerification = () => {
   // Saves updated bank details using RTK Query mutation
   const handleSaveChanges = async (bankDetail) => {
     try {
-      // FIX 2: Changed keys to snake_case
       const payload = {
         holder_name: editedDetails.holder_name,
         bank_name: editedDetails.bank_name,
@@ -177,7 +222,7 @@ const BankVerification = () => {
       await updateBankDetails({ user_id: bankDetail.user_id, body: payload }).unwrap();
       
       toast.success('Bank details updated successfully');
-      closeModal(); // RTK Query's cache invalidation will trigger a refetch
+      closeModal();
     } catch (err) {
       console.error('Error updating bank details:', err);
       toast.error(err.data?.message || 'Failed to update bank details');
@@ -187,7 +232,6 @@ const BankVerification = () => {
   // Updates KYC status using RTK Query mutation
   const handleUpdateKycStatus = async (status, id, reason = null) => {
     try {
-      // FIX 1: Convert status to lowercase
       const lowercaseStatus = status.toLowerCase();
 
       await updateKycRecordStatus({ id, status: lowercaseStatus, reason }).unwrap();
@@ -212,25 +256,12 @@ const BankVerification = () => {
     }
   };
 
-  const handleSort = (columnId) => {
-    const isAsc = selectedColumn === columnId && sortOrder === 'asc';
-    const newSortOrder = isAsc ? 'desc' : 'asc';
-    setSortOrder(newSortOrder);
-    setSelectedColumn(columnId);
-    const sorted = [...filteredData].sort((a, b) => {
-      let valA = a.relevantBankDetail?.[columnId];
-      let valB = b.relevantBankDetail?.[columnId];
-      if (valA < valB) return newSortOrder === 'asc' ? -1 : 1;
-      if (valA > valB) return newSortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-    setFilteredData(sorted);
-  };
+  // Sorting is now handled by the backend, so this function is not needed anymore
   
   const handleReasonConfirm = (reason) => {
     if (selectedKycId) {
-      // Pass the original uppercase status for consistency in UI logic
-      handleUpdateKycStatus('ON_HOLD', selectedKycId, reason);
+      // Pass the lowercase status for backend consistency
+      handleUpdateKycStatus('on_hold', selectedKycId, reason);
     }
   };
   
@@ -240,37 +271,38 @@ const BankVerification = () => {
     return `${diffDays} days ago`;
   };
 
-  const exportToCSV = () => {
-    const rows = filteredData.map(user => ({
-      user_id: user.relevantBankDetail?.user_id,
-      holder_name: user.relevantBankDetail?.holder_name,
-      account_number: user.relevantBankDetail?.account_number,
-      account_status: user.relevantBankDetail?.account_status,
-      createdAt: user.relevantBankDetail?.createdAt,
-    }));
+  // Format date helper function
+  const formatDate = (dateString) => {
+    if (!dateString) return "";
     try {
-      const csv = parse(rows, { fields: ['user_id', 'holder_name', 'account_number', 'account_status', 'createdAt'] });
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'kyc_data.csv';
-      link.click();
-      toast.success('CSV exported successfully!');
-    } catch (err) {
-      toast.error('Failed to export CSV!');
-      console.error('CSV Export Error:', err);
+      return new Date(dateString).toLocaleString("en-GB");
+    } catch (e) {
+      return dateString;
     }
   };
+
 
   const transformDocumentUrl = (url) => url?.replace(':7777/', ':7000/');
 
   // Show loading state
   if (isLoading || isFetching) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen font-['Poppins']">
+      <div
+        className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+          currentMode === "Dark"
+            ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
+            : "bg-white"
+        }`}
+      >
         <ToastContainer />
         <Header category="Page" title="Bank KYC Verification" />
-        <FullScreenLoader />
+        <div className="flex items-center justify-center h-64">
+          <div
+            className={`animate-spin rounded-full h-32 w-32 border-b-2 ${
+              currentMode === "Dark" ? "border-cyan-400" : "border-blue-600"
+            }`}
+          />
+        </div>
       </div>
     );
   }
@@ -278,7 +310,13 @@ const BankVerification = () => {
   // Show error state
   if (error) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen font-['Poppins']">
+      <div
+        className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+          currentMode === "Dark"
+            ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
+            : "bg-white border-1 border-yellow-400"
+        }`}
+      >
         <ToastContainer />
         <Header category="Page" title="Bank KYC Verification" />
         <EmptyState
@@ -293,9 +331,15 @@ const BankVerification = () => {
   }
 
   // Show empty state when no data at all
-  if (!bankKycData?.data || bankKycData.data.length === 0) {
+  if (bankKycRecords.length === 0) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen font-['Poppins']">
+      <div
+        className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+          currentMode === "Dark"
+            ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
+            : "bg-white shadow-lg border-1 border-yellow-400"
+        }`}
+      >
         <ToastContainer />
         <Header category="Page" title="Bank KYC Verification" />
         <EmptyState
@@ -308,15 +352,21 @@ const BankVerification = () => {
   }
 
   // Show simplified view when no records for current tab
-  if (filteredData.length === 0 && !searchTerm) {
+  if (filteredData.length === 0) {
     return (
-      <div className="p-6 bg-gray-50 min-h-screen font-['Poppins']">
+      <div
+        className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+          currentMode === "Dark"
+            ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
+            : "bg-white shadow-lg border-1 border-yellow-400"
+        }`}
+      >
         <ToastContainer />
         <Header category="Page" title="Bank KYC Verification" />
         
-        {/* Only show tabs when no records */}
-        <div className="bg-white p-4 rounded-lg shadow-md">
-          <div className="flex justify-start mb-4 gap-4 p-2">
+        {/* Tab Navigation */}
+        <div className="mb-4">
+          <div className="flex justify-start gap-4 p-2">
             {['pending', 'approved', 'rejected', 'on_hold'].map(tab => (
               <button
                 key={tab}
@@ -329,111 +379,245 @@ const BankVerification = () => {
               </button>
             ))}
           </div>
-          
-          <EmptyState
-            title="No Records Found"
-            message={`No records found for ${selectedTab.replace('_', ' ')} status.`}
-            iconType="document"
-            showRefreshButton
-            buttonText="Refresh Records"
-            onButtonClick={refetch}
-            className="py-16"
-          />
         </div>
+        
+        <EmptyState
+          title="No Records Found"
+          message={`No records found for ${selectedTab.replace('_', ' ')} status.`}
+          iconType="document"
+          showRefreshButton
+          buttonText="Refresh Records"
+          onButtonClick={refetch}
+          className="py-16"
+        />
       </div>
     );
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen font-['Poppins']">
+    <div
+      className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+        currentMode === "Dark"
+          ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
+          : "bg-white shadow-lg border-1 border-blue-300"
+      }`}
+    >
       <ToastContainer />
       <Header category="Page" title="Bank KYC Verification" />
       
-      {/* Search and Export Controls */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="relative w-[500px]">
-          <input
-            type="text"
-            placeholder="Search by Name, User Id, or Account Number"
-            className="w-full px-4 py-3 bg-white rounded-lg border focus:ring-2 focus:ring-blue-500"
-            value={searchTerm}
-            onChange={handleSearch}
-          />
-        </div>
-        <div className="flex gap-4">
-          <button onClick={refetch} className="px-6 py-2 flex items-center gap-2 bg-white hover:bg-gray-100 rounded-lg border">
-            Refresh
-          </button>
-          <button onClick={exportToCSV} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">
-            Export CSV
-          </button>
-        </div>
+      {/* Search Box and Export Button */}
+      <div className="mb-4 flex items-center justify-between">
+        <SearchBox
+          value={searchTerm}
+          onChange={handleSearch}
+          placeholder="Search by Name or UserId"
+        />
+        <ExportCSVButton
+          exportHook={useLazyExportBankKycRecordsQuery}
+          currentFilters={{
+            search: debouncedSearchTerm,
+            type: getTypeFromTab(selectedTab),
+          }}
+          filename="bank-kyc-records.csv"
+          buttonText="Export to CSV"
+        />
       </div>
 
-      {/* Main content */}
-      <div className="bg-white p-4 rounded-lg shadow-md">
-        <div className="flex justify-start mb-4 gap-4 p-2">
+      {/* Tab Navigation */}
+      <div className="mb-4">
+        <div className="flex justify-start gap-4 p-2">
           {['pending', 'approved', 'rejected', 'on_hold'].map(tab => (
             <button
               key={tab}
               onClick={() => handleTabChange(tab)}
               className={`capitalize w-[200px] py-3 text-sm font-medium rounded-lg transition-all ${
-                selectedTab === tab ? 'bg-amber-500 text-white shadow-md' : 'border border-amber-500 text-amber-500 hover:bg-amber-50'
+                selectedTab === tab ? 'bg-blue-500 text-white shadow-md' : 'border border-blue-500 text-blue-500 hover:bg-blue-50'
               }`}
             >
               {tab.replace('_', ' ')}
             </button>
           ))}
         </div>
-
-        {filteredData.length === 0 && searchTerm ? (
-          <EmptyState
-            title="No Records Found"
-            message="No records match your search criteria. Try adjusting your search terms."
-            iconType="search"
-            showRefreshButton
-            buttonText="Clear Search"
-            onButtonClick={() => setSearchTerm('')}
-            className="py-16"
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr>
-                  {columns.map((col) => (
-                    <th key={col.id} className="p-4 bg-gray-100 text-left cursor-pointer" onClick={() => handleSort(col.id)}>
-                      {col.label}
-                      {selectedColumn === col.id && (sortOrder === 'asc' ? ' ↑' : ' ↓')}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredData.map((user) => (
-                  <tr key={user.user_id} className="border-b hover:bg-gray-50">
-                    <td className="p-4">{user.relevantBankDetail?.id}</td>
-                    <td className="p-4">{user.relevantBankDetail?.user_id}</td>
-                    <td className="p-4">{user.relevantBankDetail?.account_number || 'N/A'}</td>
-                    <td className="p-4">{user.relevantBankDetail?.holder_name || 'N/A'}</td>
-                    <td className="p-4">{convertTimestampToDays(user.relevantBankDetail?.createdAt)}</td>
-                    <td className="p-4">
-                      <span className={`px-3 py-1 rounded-full text-xs ${getStatusClasses(user.relevantBankDetail?.account_status)}`}>
-                        {user.relevantBankDetail?.account_status}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <button onClick={() => openModal(user)} className="px-4 py-2 flex items-center gap-2 bg-blue-100 hover:bg-blue-200 rounded-full">
-                        <FaEye /> View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <table
+          className={`min-w-max border ${
+            currentMode === "Dark"
+              ? "bg-transparent border-gray-700"
+              : "bg-white border-gray-300"
+          }`}
+        >
+          <thead
+            className={currentMode === "Dark" ? "bg-transparent" : "bg-gray-50"}
+          >
+            <tr>
+              <SortableTableHeader
+                field="id"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              >
+                BANK KYC ID
+              </SortableTableHeader>
+              <SortableTableHeader
+                field="userId"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              >
+                User ID
+              </SortableTableHeader>
+              <SortableTableHeader
+                field="account_number"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              >
+                Account Number
+              </SortableTableHeader>
+              <SortableTableHeader
+                field="holder_name"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              >
+                Holder Name
+              </SortableTableHeader>
+              <SortableTableHeader
+                field="createdAt"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              >
+                Created At
+              </SortableTableHeader>
+              <SortableTableHeader
+                field="account_status"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              >
+                Status
+              </SortableTableHeader>
+              <th 
+                className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                  currentMode === "Dark" ? "text-gray-300" : "text-gray-500"
+                }`}
+              >
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody
+            className={`divide-y ${
+              currentMode === "Dark"
+                ? "bg-transparent divide-gray-800"
+                : "bg-white divide-gray-200"
+            }`}
+          >
+            {filteredData.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                  {debouncedSearchTerm ? 'No records match your search criteria.' : 'No records available.'}
+                </td>
+              </tr>
+            ) : (
+              filteredData.map((user, index) => (
+                <tr 
+                  key={user.user_id} 
+                  className={`${
+                    currentMode === "Dark" 
+                      ? "bg-gradient-to-r from-black via-slate-900 to-black hover:bg-slate-800/30" 
+                      : index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                  }`}
+                >
+                  <td
+                    className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
+                      currentMode === "Dark" ? "text-white" : "text-gray-900"
+                    }`}
+                  >
+                    {user.relevantBankDetail?.id || "-"}
+                  </td>
+                  <td
+                    className={`px-6 py-4 whitespace-nowrap text-sm ${
+                      currentMode === "Dark" ? "text-white" : "text-gray-500"
+                    }`}
+                  >
+                    {user.relevantBankDetail?.userId || "-"}
+                  </td>
+                  <td
+                    className={`px-6 py-4 whitespace-nowrap text-sm ${
+                      currentMode === "Dark" ? "text-white" : "text-gray-500"
+                    }`}
+                  >
+                    {user.relevantBankDetail?.account_number || "-"}
+                  </td>
+                  <td
+                    className={`px-6 py-4 whitespace-nowrap text-sm ${
+                      currentMode === "Dark" ? "text-white" : "text-gray-500"
+                    }`}
+                  >
+                    {user.relevantBankDetail?.holder_name || "-"}
+                  </td>
+                  <td
+                    className={`px-6 py-4 whitespace-nowrap text-sm ${
+                      currentMode === "Dark" ? "text-white" : "text-gray-500"
+                    }`}
+                  >
+                    {formatDate(user.relevantBankDetail?.createdAt)}
+                  </td>
+                  <td
+                    className={`px-6 py-4 whitespace-nowrap text-sm ${
+                      currentMode === "Dark" ? "text-white" : "text-gray-500"
+                    }`}
+                  >
+                    <span className={`px-3 py-1 rounded-full text-xs ${getStatusClasses(user.relevantBankDetail?.account_status)}`}>
+                      {user.relevantBankDetail?.account_status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <button
+                      onClick={() => openModal(user)}
+                      className={`px-4 py-2 flex items-center gap-2 rounded-full transition-colors ${
+                        currentMode === "Dark"
+                          ? "bg-blue-600 hover:bg-blue-700 text-white"
+                          : "bg-blue-100 hover:bg-blue-200 text-blue-800"
+                      }`}
+                    >
+                      <FaEye className="w-4 h-4" />
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        totalRecords={totalRecords}
+        backendLimit={backendLimit}
+        recordsCount={bankKycRecords.length}
+      />
+
+      {/* No Records Message for search results */}
+      {filteredData.length === 0 && debouncedSearchTerm && (
+        <EmptyState
+          title="No Bank KYC Records Found"
+          message="No records match your search criteria. Try adjusting your search terms."
+          iconType="document"
+          showRefreshButton
+          buttonText="Refresh Bank KYC Records"
+          className="py-16"
+        />
+      )}
       
        <BankDetailModal
          isOpen={isModalOpen}

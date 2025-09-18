@@ -176,7 +176,7 @@ const WithdrawalsPage = () => {
       className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
         currentMode === "Dark"
           ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
-          : "bg-white shadow-lg"
+          : "bg-white shadow-lg border-1 border-blue-300"
       }`}
     >
       <Header category="Page" title="Withdrawal Transactions" />
@@ -303,7 +303,7 @@ const WithdrawalsPage = () => {
                     currentMode === "Dark" ? "text-white" : "text-gray-500"
                   }`}
                 >
-                  ${record.amount || "-"}
+                  {record.amount || "-"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm">
                   <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-medium capitalize ${

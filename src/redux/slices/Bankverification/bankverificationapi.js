@@ -7,10 +7,24 @@ export const bankverificationApi = apiSlice.injectEndpoints({
   overrideExisting: true,
   endpoints: (builder) => ({
     getBankKyc: builder.query({
-      query: () => ({
-        url: "operations/bankkyc/bankkyc",
-        method: "GET",
-      }),
+      query: (params = {}) => {
+        const queryParams = {
+          page: params.page || 1,
+          search: params.search || "",
+          ...params,
+        };
+        
+        // Only add type parameter if it's not null/undefined
+        if (params.type) {
+          queryParams.type = params.type;
+        }
+        
+        return {
+          url: "operations/bankkyc/bankkyc",
+          method: "GET",
+          params: queryParams,
+        };
+      },
       providesTags: ["BankKyc"],
     }),
 
@@ -19,9 +33,9 @@ export const bankverificationApi = apiSlice.injectEndpoints({
   query: ({ user_id, body }) => ({
     url: `operations/bankkyc/bankkyc/${user_id}/details`,
     method: 'PUT',
-    body, // The data to be sent in the request body
+    body,
   }),
-  invalidatesTags: ['BankKyc'], // Optional but recommended for auto-refresh
+  invalidatesTags: ['BankKyc'], 
 }),
 
     updateKycRecordStatus: builder.mutation({
@@ -41,6 +55,18 @@ export const bankverificationApi = apiSlice.injectEndpoints({
       }),
       invalidatesTags: ["BankKyc"],
     }),
+
+    exportBankKycRecords: builder.query({
+      query: (params = {}) => ({
+        url: "operations/bankkyc/bankkyc",
+        method: "GET",
+        params: {
+          ...params,
+          export: 'csv',
+        },
+        responseHandler: (response) => response.blob(),
+      }),
+    }),
   }),
 });
 
@@ -51,4 +77,5 @@ export const {
   useUpdateBankDetailsMutation,
   useUpdateKycRecordStatusMutation,
   useGetOnHoldBankKycMutation,
+  useLazyExportBankKycRecordsQuery,
 } = bankverificationApi;

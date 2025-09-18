@@ -22,20 +22,22 @@ const BankDetailModal = ({
 
   // Helper to determine tailwind classes based on KYC status
   const getStatusClasses = (status) => {
-    switch (status) {
+    switch (status?.toUpperCase()) {
       case 'APPROVED':
         return 'bg-green-100 text-green-800 border border-green-300';
       case 'REJECTED':
         return 'bg-red-100 text-red-800 border border-red-300';
       case 'ON_HOLD':
         return 'bg-orange-100 text-orange-800 border border-orange-300';
-      default:
+      case 'UNDER_REVIEW':
         return 'bg-amber-100 text-amber-800 border border-amber-300';
+      default:
+        return 'bg-gray-100 text-gray-800 border border-gray-300';
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-xl max-w-4xl w-[90%] max-h-[80vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-800">
@@ -49,8 +51,20 @@ const BankDetailModal = ({
           </button>
         </div>
 
+
         {selectedUser.allBankDetails?.map((detail, index) => {
-          const kycRecord = selectedUser.kycRecords?.find(kyc => kyc.BankId === detail.id);
+          // Find matching KYC record for this bank detail
+          const matchingKycRecord = selectedUser.kycRecords?.find(kyc => kyc.BankId === detail.id);
+          
+          // Handle single KYC record cases
+          const singleKycRecord = selectedUser.kycRecords?.length === 1 ? selectedUser.kycRecords[0] : null;
+          
+          // Determine which KYC record to show
+          const kycRecord = matchingKycRecord || 
+            (singleKycRecord && index === 0) || 
+            (singleKycRecord && selectedUser.allBankDetails.length === 1) 
+              ? matchingKycRecord || singleKycRecord 
+              : null;
           
           return (
             <div 
@@ -73,6 +87,10 @@ const BankDetailModal = ({
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <label className="text-sm text-gray-500 mb-1 block">Bank Details ID</label>
+                  <p className="p-2 bg-gray-100 rounded">{detail.id || 'N/A'}</p>
+                </div>
                 <div>
                   <label className="text-sm text-gray-500 mb-1 block">Holder Name</label>
                   {index === 0 && isEditable ? (
@@ -157,12 +175,18 @@ const BankDetailModal = ({
               </div>
               
               {/* KYC Document Section */}
-              {kycRecord && (
-                <div className="mt-6 pt-4 border-t border-gray-200">
-                  <h4 className="mb-4 text-gray-700 font-semibold flex items-center gap-2">
-                    <FaEye className="text-blue-500" />
-                    KYC Document
-                  </h4>
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <h4 className="mb-4 text-gray-700 font-semibold flex items-center gap-2">
+                  <FaEye className="text-blue-500" />
+                  KYC Document Information
+                  {singleKycRecord && index === 0 && !matchingKycRecord && (
+                    <span className="text-xs text-blue-400 ml-2">
+                      (Single KYC record shown with latest bank details)
+                    </span>
+                  )}
+                </h4>
+                
+                {kycRecord ? (
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
@@ -185,7 +209,12 @@ const BankDetailModal = ({
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">
-                          <strong>Linked Bank ID:</strong> {kycRecord.BankId}
+                          <strong>Linked Bank ID:</strong> {kycRecord.BankId || (singleKycRecord && index === 0 ? "Not linked (Single KYC Record)" : "Not linked")}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-600">
+                          <strong>KYC Record ID:</strong> {kycRecord.id || 'N/A'}
                         </p>
                       </div>
                     </div>
@@ -201,8 +230,19 @@ const BankDetailModal = ({
                       </a>
                     </div>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-500 italic">
+                      {selectedUser.kycRecords?.length === 0 
+                        ? "No KYC records available. KYC data needs to be included in the backend API response." 
+                        : index === 0 
+                          ? "No KYC documents found for this bank record" 
+                          : "No matching KYC documents for this previous record"
+                      }
+                    </p>
+                  </div>
+                )}
+              </div>
 
               {/* Action Buttons - Only for latest record */}
               {index === 0 && (
@@ -210,7 +250,7 @@ const BankDetailModal = ({
                   <div className="flex flex-wrap gap-2 justify-end">
                     {!isEditable ? (
                       <>
-                        {detail.account_status === 'UNDER_REVIEW' && kycRecord && (
+                        {detail.account_status?.toUpperCase() === 'UNDER_REVIEW' && kycRecord && (
                           <>
                             <button 
                               onClick={() => onEditClick(detail)} 
@@ -220,21 +260,36 @@ const BankDetailModal = ({
                               Edit
                             </button>
                             <button 
-                              onClick={() => onReasonModalOpen(kycRecord.id)} 
+                              onClick={() => {
+                                console.log("👉 On Hold Button Clicked");
+                                console.log("📋 Selected User Data:", selectedUser);
+                                console.log("🏦 Bank Detail:", detail);
+                                console.log("🔍 Looking for KYC record with Bank ID:", detail.id);
+                                console.log("📄 Found KYC Record:", kycRecord);
+
+                                if (kycRecord) {
+                                  console.log("✅ Setting up On Hold modal with:");
+                                  console.log("   - KYC ID:", kycRecord.id);
+                                  console.log("   - Bank ID:", kycRecord.BankId);
+                                  onReasonModalOpen(kycRecord.id);
+                                } else {
+                                  console.log("❌ No matching KYC record found");
+                                }
+                              }}
                               className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg flex items-center gap-2 transition-colors"
                             >
                               <FaTimesCircle />
                               On Hold
                             </button>
                             <button 
-                              onClick={() => onUpdateKycStatus('APPROVED', kycRecord.id)} 
+                              onClick={() => onUpdateKycStatus('approved', kycRecord.id)} 
                               className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg flex items-center gap-2 transition-colors"
                             >
                               <FaCheck />
                               Approve
                             </button>
                             <button 
-                              onClick={() => onUpdateKycStatus('REJECTED', kycRecord.id)} 
+                              onClick={() => onUpdateKycStatus('rejected', kycRecord.id)} 
                               className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center gap-2 transition-colors"
                             >
                               <FaTimesCircle />
@@ -242,7 +297,7 @@ const BankDetailModal = ({
                             </button>
                           </>
                         )}
-                        {detail.account_status?.toLowerCase() === 'on_hold' && (
+                        {detail.account_status?.toUpperCase() === 'ON_HOLD' && (
                           <button 
                             onClick={() => onSendReminder(detail)} 
                             disabled={isSendingReminder} 
