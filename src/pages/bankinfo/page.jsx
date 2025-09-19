@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { useSelector } from "react-redux";
 import { BsBank } from "react-icons/bs";
 import { FiHash, FiCreditCard, FiKey, FiMapPin } from "react-icons/fi";
 import { Header, EmptyState } from "../../components";
@@ -8,19 +9,24 @@ import { useGetBankInfoQuery } from "../../redux/slices/bankinfo/bankinfoApi";
 const InfoTile = ({ icon: Icon, label, value, isMonospace = false }) => {
   const textClass = isMonospace ? "font-mono" : "";
   return (
-    <div className="rounded-xl border p-4 shadow-sm hover:shadow-md transition-shadow bg-white border-gray-200 dark:bg-transparent dark:border-gray-700">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="p-2 rounded-md bg-blue-50 dark:bg-cyan-400/10 dark:border dark:border-cyan-400/20 text-blue-700 dark:text-cyan-300">
+    <div className="space-y-2">
+      {/* Icon and Label */}
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-lg bg-blue-50 text-blue-600">
           <Icon className="text-lg" />
         </div>
-        <span className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-300">
+        <span className="text-xs uppercase tracking-wide text-gray-500 font-medium">
           {label}
         </span>
       </div>
-      <div
-        className={`text-sm font-semibold text-gray-900 dark:text-white break-words ${textClass}`}
-      >
-        {value || "—"}
+      
+      {/* Input Field Style Display */}
+      <div className="relative">
+        <div
+          className={`w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-gray-900 ${textClass} focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent`}
+        >
+          {value || "—"}
+        </div>
       </div>
     </div>
   );
@@ -28,19 +34,32 @@ const InfoTile = ({ icon: Icon, label, value, isMonospace = false }) => {
 
 const BankInfoPage = () => {
   const { currentMode } = useStateContext();
-  const { data, isLoading, error } = useGetBankInfoQuery();
+  const { bankinfo = {}, loading: isLoading, error } = useSelector((state) => state.bankinfo);
+  const { isFetching } = useGetBankInfoQuery();
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  const bankList = data?.data ?? [];
+  useEffect(() => {
+    if (bankinfo && Object.keys(bankinfo).length > 0 || error) {
+      setIsInitialLoad(false);
+    }
+  }, [bankinfo, error]);
 
-  if (isLoading) {
+  // Console log to check slice data (only when data changes)
+  useEffect(() => {
+    console.log("🔍 BankInfo Slice Data:", {
+      bankinfo: bankinfo,
+      isLoading: isLoading,
+      error: error,
+      isInitialLoad: isInitialLoad
+    });
+  }, [bankinfo, isLoading, error, isInitialLoad]);
+
+  const bankList = bankinfo && Array.isArray(bankinfo) ? bankinfo : [];
+
+  // Show loading state - handle all loading scenarios
+  if (isLoading || isFetching || (isInitialLoad && !error)) {
     return (
-      <div
-        className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
-          currentMode === "Dark"
-            ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
-            : "bg-white"
-        }`}
-      >
+      <div className="m-2 md:m-10 mt-24 p-2 md:p-10 border-1 border-blue-300 shadow-lg rounded-3xl">
         <Header category="Page" title="Bank Information" />
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600" />
@@ -51,13 +70,7 @@ const BankInfoPage = () => {
 
   if (error) {
     return (
-      <div
-        className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
-          currentMode === "Dark"
-            ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
-            : "bg-white"
-        }`}
-      >
+      <div className="m-2 md:m-10 mt-24 p-2 md:p-10">
         <Header category="Page" title="Bank Information" />
         <EmptyState
           title="Unable to Load Bank Info"
@@ -69,16 +82,10 @@ const BankInfoPage = () => {
     );
   }
 
-  // Show empty state when no bank info records
-  if (bankList.length === 0) {
+  // Only show empty state if we're not loading, have no data, no error, and initial load is complete
+  if (bankList.length === 0 && !isLoading && !isFetching && !error && !isInitialLoad) {
     return (
-      <div
-        className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
-          currentMode === "Dark"
-            ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
-            : "bg-white shadow-lg"
-        }`}
-      >
+      <div className="m-2 md:m-10 mt-24 p-2 md:p-10">
         <Header category="Page" title="Bank Information" />
         <EmptyState
           title="No Bank Information Found"
@@ -89,52 +96,22 @@ const BankInfoPage = () => {
     );
   }
 
-  const headerBgClass =
-    currentMode === "Dark"
-      ? "bg-transparent border border-gray-700"
-      : "bg-gradient-to-r from-blue-600 to-indigo-600";
-  const headerChipBg =
-    currentMode === "Dark" ? "bg-cyan-400/10" : "bg-white/20";
-
   return (
-    <div
-      className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
-        currentMode === "Dark"
-          ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
-          : "bg-white shadow-lg"
-      }`}
-    >
+    <div className="m-2 md:m-10 mt-24 p-2 md:p-10 border-1 border-blue-300 shadow-lg rounded-3xl">
       <Header category="Page" title="Bank Information" />
 
       {bankList.map((info) => (
-        <div key={info.id} className="mb-10">
-          {/* Bank card header */}
-          <div className={`mt-6 rounded-2xl overflow-hidden shadow ${headerBgClass}`}>
-            <div className="flex items-center gap-4 px-6 py-5 text-white">
-              <div className={`p-3 rounded-full ${headerChipBg}`}>
-                <BsBank className="text-2xl" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm/5 opacity-90">Bank</div>
-                <div className="text-xl font-semibold truncate">
-                  {info.bank_name || "—"}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Details tiles */}
-          <div className="mt-4">
-            <div className="px-2 sm:px-0 mb-2">
-              <h2
-                className={`text-lg font-semibold ${
-                  currentMode === "Dark" ? "text-white" : "text-gray-900"
-                }`}
-              >
+        <div key={info.id} className="mb-8">
+          {/* Account Details Section */}
+          <div className="mt-6">
+            <div className="bg-blue-600 px-4 py-3 rounded-lg mb-6">
+              <h2 className="text-lg font-semibold text-white">
                 Account Details
               </h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            
+            {/* Form-style grid layout */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               <InfoTile icon={FiCreditCard} label="Account Type" value={info.account_type} />
               <InfoTile icon={FiHash} label="Account Name" value={info.account_name} isMonospace />
               <InfoTile icon={FiHash} label="Account Number" value={info.account_no} isMonospace />

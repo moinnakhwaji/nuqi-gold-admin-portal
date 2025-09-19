@@ -3,7 +3,7 @@ import { bankinfoApi } from "./bankinfoApi";
 
 const initialState = {
     bankinfo: {},
-    loading: false,
+    loading: true,
     error: null,
 };
 
@@ -23,8 +23,14 @@ const bankinfoSlice = createSlice({
     },
     extraReducers: (builder) => {
         builder
-        .addMatcher(bankinfoApi.endpoints.getBankInfo.matchPending, setLoading)
-        .addMatcher(bankinfoApi.endpoints.getBankInfo.matchRejected, setError)
+        .addMatcher(bankinfoApi.endpoints.getBankInfo.matchPending, (state) => {
+            state.loading = true;
+            state.error = null;
+        })
+        .addMatcher(bankinfoApi.endpoints.getBankInfo.matchRejected, (state, action) => {
+            state.loading = false;
+            state.error = action.error;
+        })
         .addMatcher(bankinfoApi.endpoints.getBankInfo.matchFulfilled, (state, action) => {
             console.log("Bank info fetched:", action.payload);
             state.bankinfo = action.payload.data || {};
