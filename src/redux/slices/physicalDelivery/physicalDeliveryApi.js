@@ -26,10 +26,24 @@ export const physicalDeliveryApi = apiSlice.injectEndpoints({
       }),
       invalidatesTags: ["PhysicalDelivery"],
     }),
+
+    // ✅ Export physical deliveries to CSV
+    exportPhysicalDeliveries: builder.query({
+      query: (params = {}) => ({
+        url: "operations/physical-delivery",
+        method: "GET",
+        params: {
+          ...params,
+          export: 'csv',
+        },
+        responseHandler: (response) => response.blob(),
+      }),
+    }),
   }),
 });
 
 export const {
   useGetPhysicalDeliveriesQuery,
   useUpdatePhysicalDeliveryStatusMutation,
+  useLazyExportPhysicalDeliveriesQuery,
 } = physicalDeliveryApi;

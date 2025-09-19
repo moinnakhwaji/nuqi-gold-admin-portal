@@ -1,25 +1,71 @@
 import React, { useState, useEffect } from "react";
-import { CSVLink } from "react-csv";
 import { toast } from "react-toastify";
 import {
   useGetPhysicalDeliveriesQuery,
   useUpdatePhysicalDeliveryStatusMutation,
+  useLazyExportPhysicalDeliveriesQuery,
 } from "../../redux/slices/physicalDelivery/physicalDeliveryApi";
-import { Pagination, StatusModal } from "../../components";
+import { 
+  Pagination, 
+  StatusModal, 
+  Header,
+  EmptyState,
+  SearchBox,
+  ExportCSVButton,
+  StatusTabs,
+  SortableTableHeader
+} from "../../components";
 import DeliveryModal from "../../components/DeliveryModal";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { useStateContext } from "../../contexts/ContextProvider";
+import {
+  setActiveStatus,
+  setSearch,
+  setCurrentPage,
+  selectActiveStatus,
+  selectSearch,
+  selectCurrentPage,
+  selectItemsPerPage,
+} from "../../redux/slices/physicalDelivery/physicalDeliverySlice";
 
 const PhysicalDelivery = () => {
+  const { currentMode } = useStateContext();
+  
   // --- Component State ---
-  const [search, setSearch] = useState("");
+  const dispatch = useDispatch();
   const [openDropdown, setOpenDropdown] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState({});
-   const user = useSelector((state) => state.auth.user); // ✅ Get the full user object
-  const userRole = user?.role; // ✅ Get the role
+  const [sortField, setSortField] = useState("");
+  const [sortDirection, setSortDirection] = useState("desc");
   
-  // State for Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  // Redux state
+  const search = useSelector(selectSearch);
+  const activeStatus = useSelector(selectActiveStatus);
+  const currentPage = useSelector(selectCurrentPage);
+  const itemsPerPage = useSelector(selectItemsPerPage);
+  const user = useSelector((state) => state.auth.user);
+  const userRole = user?.role;
+
+  // Handle sorting
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  // Status tabs configuration
+  const statusTabs = [
+    { value: "PLACED", label: "Placed" },
+    { value: "PROCESSED", label: "Processed" },
+    { value: "ON_THE_WAY", label: "On The Way" },
+    { value: "DELIVERED", label: "Delivered" }
+  ].map(tab => ({
+    ...tab,
+    label: tab.label.replace('_', ' ')
+  }));
 
   // State for Delivery Details Modal
   const [selectedDelivery, setSelectedDelivery] = useState(null);
@@ -35,13 +81,19 @@ const PhysicalDelivery = () => {
 
   // --- Redux Toolkit Query Hooks ---
   
-  // Fetch delivery data from API
+  // Fetch delivery data from API with filters
   const {
     data: deliveryResponse,
     isLoading,
     error,
-    refetch, // Added refetch to easily refresh data
-  } = useGetPhysicalDeliveriesQuery();
+  } = useGetPhysicalDeliveriesQuery({
+    page: currentPage,
+    limit: itemsPerPage,
+    search: search,
+    status: activeStatus,
+    sort_field: sortField,
+    sort_direction: sortDirection
+  });
 
   // Update order status mutation
   const [updateOrderStatus, { isLoading: isUpdating }] =
@@ -58,11 +110,11 @@ const PhysicalDelivery = () => {
     const toastId = toast.loading(`Updating status to ${newStatus}...`);
 
     try {
-      await updateOrderStatus({
+      const result = await updateOrderStatus({
         order_id: orderId,
         status_to: newStatus,
         message: `Order status updated to ${newStatus}`,
-        actor: "admin",
+        actor: userRole,
       }).unwrap();
 
       toast.dismiss(toastId);
@@ -71,7 +123,11 @@ const PhysicalDelivery = () => {
       // Clear selection and close dropdown after successful update
       setSelectedStatus(prev => ({ ...prev, [orderId]: null }));
       setOpenDropdown(null);
-      // No need to refetch manually, RTK Query handles cache invalidation if configured
+      
+      // Reset to first page if we're not on it
+      if (currentPage !== 1) {
+        dispatch(setCurrentPage(1));
+      }
       
     } catch (err) {
       toast.dismiss(toastId);
@@ -129,194 +185,312 @@ const PhysicalDelivery = () => {
 
   // --- Data Filtering and Pagination ---
 
-  // Filter deliveries based on the search input
-  const searchFilteredDeliveries = deliveries.filter(
-    (delivery) =>
-      (delivery.user_id?.toLowerCase() || "").includes(search.toLowerCase()) ||
-      (delivery.order_id?.toLowerCase() || "").includes(search.toLowerCase())
-  );
+  // Get row background class for alternating colors
+  const getRowBackgroundClass = (index) => {
+    if (currentMode === "Dark") {
+      return "bg-gradient-to-r from-black via-slate-900 to-black";
+    }
+    return index % 2 === 0 ? "bg-white" : "bg-gray-50";
+  };
   
-  // Reset to the first page whenever the search filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search]);
-  
-  // Calculate pagination values
-  const totalItems = searchFilteredDeliveries.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-
-  // Get the data for the current page
-  const paginatedDeliveries = searchFilteredDeliveries.slice(startIndex, endIndex);
+  // Get pagination values from API response
+  const totalItems = deliveryResponse?.totalRecords || 0;
+  const totalPages = deliveryResponse?.totalPages || 1;
+  const paginatedDeliveries = deliveryResponse?.data || [];
 
   // --- UI Helpers ---
 
   const getStatusColor = (status) => {
-    // (Implementation is the same as your original code)
     switch (status?.toLowerCase()) {
       case "processed": return "bg-blue-100 text-blue-800";
-      case "on the way": return "bg-yellow-100 text-yellow-800";
+      case "on_the_way": return "bg-yellow-100 text-yellow-800";
       case "delivered": return "bg-green-100 text-green-800";
-      case "pending": return "bg-gray-100 text-gray-800";
-      case "failed": return "bg-red-100 text-red-800";
+      case "placed": return "bg-gray-100 text-gray-800";
       default: return "bg-gray-100 text-gray-800";
     }
   };
 
-  const statusOptions = [
-    { value: "Processed", label: "Processed", color: "text-blue-600" },
-    { value: "On_The_Way", label: "Transit", color: "text-yellow-600" },
-    { value: "Delivered", label: "Delivered", color: "text-green-600" },
-  ];
-
-  const getAvailableOptions = (currentStatus) => {
-    return statusOptions.filter(option => {
-      const normalizedCurrent = currentStatus?.toLowerCase().replace(/[_\s]/g, '');
-      const normalizedOption = option.value.toLowerCase().replace(/[_\s]/g, '');
-      return normalizedCurrent !== normalizedOption;
-    });
+  const getAvailableOptions = (delivery) => {
+    if (!delivery?.availableActions) return [];
+    
+    return delivery.availableActions.map(status => ({
+      value: status,
+      label: status.replace(/_/g, ' ').toLowerCase()
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' '),
+      color: status === "PROCESSED" ? "text-blue-600" 
+           : status === "ON_THE_WAY" ? "text-yellow-600"
+           : status === "DELIVERED" ? "text-green-600"
+           : "text-gray-600"
+    }));
   };
   
   const toggleDropdown = (orderId) => {
     setOpenDropdown(openDropdown === orderId ? null : orderId);
   };
-  
-  const csvData = searchFilteredDeliveries.map((delivery) => ({
-    // (CSV data mapping is the same as your original code)
-    "Order ID": delivery.order_id || "N/A",
-    "User Nuqi ID": delivery.user_id || "N/A",
-    "Amount (AED)": delivery.total_payable_aed || "N/A",
-    Address: delivery.emirate || "N/A",
-    Status: delivery.status || "N/A",
-    "Expected Delivery": delivery.estimated_delivery_date
-      ? new Date(delivery.estimated_delivery_date).toLocaleDateString()
-      : "N/A",
-  }));
 
   // --- Render Logic ---
 
   if (isLoading) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow text-center">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">Physical Delivery Management</h2>
-        <p>Loading delivery data...</p>
+      <div className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+        currentMode === "Dark"
+          ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
+          : "bg-white border-1 border-blue-300"
+      }`}>
+        <Header category="Page" title="Physical Delivery Management" />
+        <div className="flex items-center justify-center h-64">
+          <div className={`animate-spin rounded-full h-32 w-32 border-b-2 ${
+            currentMode === "Dark" ? "border-cyan-400" : "border-blue-600"
+          }`} />
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow text-center">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">Physical Delivery Management</h2>
-        <p className="text-red-500">Failed to load delivery data. Please try again.</p>
-        <button onClick={() => refetch()} className="mt-4 px-4 py-2 bg-blue-500 text-white rounded">
-          Retry
-        </button>
+      <div className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+        currentMode === "Dark"
+          ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100"
+          : "bg-white border-1 border-blue-300"
+      }`}>
+        <Header category="Page" title="Physical Delivery Management" />
+        <EmptyState
+          variant="error"
+          title="Unable to Load Delivery Records"
+          message="We encountered an issue while loading the delivery records. Please try refreshing the page or contact support if the problem persists."
+          buttonText="Refresh Page"
+        />
       </div>
     );
   }
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow">
-      <h2 className="text-lg font-semibold mb-4 text-gray-900">Physical Delivery Management</h2>
+    <div className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+      currentMode === "Dark"
+        ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
+        : "bg-white shadow-lg border-1 border-blue-300"
+    }`}>
+      <Header category="Page" title="Physical Delivery Management" />
 
       <div className="flex flex-col space-y-4">
         {/* Search and Export */}
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Search by user ID or order ID..."
+        <div className="mb-4 flex items-center justify-between">
+          <SearchBox
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-64 px-3 py-2 border rounded"
+            onChange={(e) => dispatch(setSearch(e.target.value))}
+            placeholder="Search by user ID or order ID..."
           />
-          <CSVLink data={csvData} filename="physical-deliveries.csv" className="bg-[#0472E5] text-white px-4 py-2 rounded">
-            Download
-          </CSVLink>
-           <button onClick={() => refetch()} disabled={isLoading} className="px-4 py-2 bg-green-500 text-white rounded disabled:opacity-50">
-            {isLoading ? "Refreshing..." : "Refresh"}
-          </button>
+          <ExportCSVButton
+            exportHook={useLazyExportPhysicalDeliveriesQuery}
+            currentFilters={{
+              search: search,
+              status: activeStatus
+            }}
+            filename="physical-deliveries.csv"
+            buttonText="Export to CSV"
+          />
         </div>
 
+        {/* Status Tabs */}
+        <StatusTabs
+          tabs={statusTabs}
+          activeTab={activeStatus}
+          onTabChange={(value) => dispatch(setActiveStatus(value))}
+          color="blue"
+        />
+
         {/* Deliveries Table */}
-        <div className="w-full overflow-x-auto">
-          <table className="min-w-full table-auto text-sm">
+        <div className="overflow-x-auto">
+          <table className={`min-w-max border ${
+            currentMode === "Dark"
+              ? "bg-transparent border-gray-700"
+              : "bg-white border-gray-300"
+          }`}>
             {/* Table Head */}
-            <thead className="bg-gray-100">
+            <thead className={currentMode === "Dark" ? "bg-transparent" : "bg-gray-50"}>
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Order ID</th>
-                <th className="px-4 py-3 text-left font-medium">User Nuqi ID</th>
-                <th className="px-4 py-3 text-left font-medium">Amount</th>
-                <th className="px-4 py-3 text-left font-medium">Address</th>
-                <th className="px-4 py-3 text-left font-medium">Status</th>
-                <th className="px-4 py-3 text-left font-medium">Expected Delivery</th>
-                <th className="px-4 py-3 text-left font-medium">Actions</th>
+                <SortableTableHeader
+                  field="order_id"
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                >
+                  Order ID
+                </SortableTableHeader>
+                <SortableTableHeader
+                  field="user_id"
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                >
+                  User Nuqi ID
+                </SortableTableHeader>
+                <SortableTableHeader
+                  field="total_payable_aed"
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                >
+                  Amount
+                </SortableTableHeader>
+                <SortableTableHeader
+                  field="emirate"
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                >
+                  Address
+                </SortableTableHeader>
+                <SortableTableHeader
+                  field="status"
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                >
+                  Status
+                </SortableTableHeader>
+                <SortableTableHeader
+                  field="estimated_delivery_date"
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                >
+                  Expected Delivery
+                </SortableTableHeader>
+                <th className={`px-6 py-4 text-left text-xs font-medium ${
+                  currentMode === "Dark" ? "text-gray-300" : "text-gray-500"
+                } uppercase tracking-wider`}>
+                  Actions
+                </th>
               </tr>
             </thead>
             {/* Table Body */}
-            <tbody>
+            <tbody
+              className={`divide-y ${
+                currentMode === "Dark"
+                  ? "bg-transparent divide-gray-800"
+                  : "bg-white divide-gray-200"
+              }`}
+            >
               {paginatedDeliveries.length > 0 ? (
-                paginatedDeliveries.map((delivery) => {
-                  const availableOptions = getAvailableOptions(delivery.status);
+                paginatedDeliveries.map((delivery, index) => {
+                  const availableOptions = getAvailableOptions(delivery);
                   const hasSelectedStatus = selectedStatus[delivery.order_id];
                   const isCurrentOrderUpdating = updatingOrderId === delivery.order_id;
                   
                   return (
-                    <tr key={delivery.order_id} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium">{delivery.order_id || "-"}</td>
-                      <td className="px-4 py-3">{delivery.user_id || "-"}</td>
-                      <td className="px-4 py-3">{delivery.total_payable_aed || "-"}</td>
-                      <td className="px-4 py-3 truncate max-w-xs" title={delivery.emirate || "-"}>{delivery.emirate || "-"}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${getStatusColor(delivery.status)}`}>
+                    <tr key={delivery.order_id} className={getRowBackgroundClass(index)}>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
+                        currentMode === "Dark" ? "text-white" : "text-gray-900"
+                      }`}>{delivery.order_id || "-"}</td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${
+                        currentMode === "Dark" ? "text-white" : "text-gray-500"
+                      }`}>{delivery.user_id || "-"}</td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${
+                        currentMode === "Dark" ? "text-white" : "text-gray-500"
+                      }`}>{delivery.total_payable_aed || "-"}</td>
+                      <td className={`px-6 py-4 text-sm ${
+                        currentMode === "Dark" ? "text-white" : "text-gray-500"
+                      }`}>
+                        <div className="w-48">
+                          <p className="line-clamp-3" title={delivery.emirate || "-"}>
+                            {delivery.emirate || "-"}
+                          </p>
+                        </div>
+                      </td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${
+                        currentMode === "Dark" ? "text-white" : "text-gray-500"
+                      }`}>
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(delivery.status)}`}>
                           {delivery.status || "-"}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${
+                        currentMode === "Dark" ? "text-white" : "text-gray-500"
+                      }`}>
                         {delivery.estimated_delivery_date ? new Date(delivery.estimated_delivery_date).toLocaleDateString() : "-"}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${
+                        currentMode === "Dark" ? "text-white" : "text-gray-500"
+                      }`}>
                         <div className="flex items-center gap-2">
-                            {/* Status Dropdown */}
-                            <div className="relative">
-                              <button
-                                onClick={() => toggleDropdown(delivery.order_id)}
-                                disabled={isCurrentOrderUpdating}
-                                className="flex items-center gap-1 px-3 py-2 text-xs rounded border"
-                              >
-                                {selectedStatus[delivery.order_id] || "Select Status"}
-                              </button>
-                              {openDropdown === delivery.order_id && (
-                                <div className="absolute top-full left-0 mt-1 bg-white border rounded shadow-lg z-20">
-                                  {availableOptions.map((option) => (
-                                    <button
-                                      key={option.value}
-                                      onClick={() => handleStatusSelection(delivery.order_id, option.value)}
-                                      className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 ${option.color}`}
-                                    >
-                                      {option.label}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
+                            {/* Status Dropdown - Only show if there are available actions */}
+                            {availableOptions.length > 0 && (userRole === "admin" || userRole === "superadmin") && (
+                              <div className="relative">
+                                <button
+                                  onClick={() => toggleDropdown(delivery.order_id)}
+                                  disabled={isCurrentOrderUpdating}
+                                  className={`flex items-center justify-between gap-2 px-4 py-2 text-xs rounded-lg border transition-all min-w-[120px] ${
+                                    currentMode === "Dark"
+                                      ? "border-gray-700 hover:border-gray-600 text-white"
+                                      : "border-gray-300 hover:border-gray-400 text-gray-700"
+                                  }`}
+                                >
+                                  <span>{selectedStatus[delivery.order_id] || "Select Status"}</span>
+                                  <svg 
+                                    className={`w-4 h-4 transition-transform ${openDropdown === delivery.order_id ? 'rotate-180' : ''}`} 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                                {openDropdown === delivery.order_id && (
+                                  <div className={`absolute top-full left-0 mt-1 border rounded-lg shadow-lg z-20 min-w-[120px] ${
+                                    currentMode === "Dark"
+                                      ? "bg-gray-800 border-gray-700"
+                                      : "bg-white border-gray-200"
+                                  }`}>
+                                    <div className="flex flex-col py-1">
+                                      {availableOptions.map((option) => (
+                                        <button
+                                          key={option.value}
+                                          onClick={() => handleStatusSelection(delivery.order_id, option.value)}
+                                          className={`w-full text-left px-4 py-2 text-xs hover:bg-opacity-10 ${
+                                            currentMode === "Dark"
+                                              ? "hover:bg-white text-white"
+                                              : "hover:bg-black text-gray-700"
+                                          } ${option.color}`}
+                                        >
+                                          {option.label}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* View Button */}
                             <button
                               onClick={() => handleViewDetails(delivery)}
-                              className="px-3 py-2 text-xs bg-green-500 text-white rounded"
+                              className={`px-3 py-2 text-xs text-white rounded-lg transition-all ${
+                                currentMode === "Dark"
+                                  ? "bg-green-500 hover:bg-green-600"
+                                  : "bg-green-600 hover:bg-green-700"
+                              }`}
                             >
                               View
                             </button>   
-                            {/* Submit and View Buttons */}
-                          {(userRole === "admin" || userRole === "superadmin") && (
-  <button
-    onClick={() => handleSubmitStatusUpdate(delivery.order_id)}
-    disabled={isCurrentOrderUpdating || !hasSelectedStatus}
-    className="px-3 py-2 text-xs bg-blue-500 text-white rounded disabled:opacity-50"
-  >
-    {isCurrentOrderUpdating ? "Updating..." : "Submit"}
-  </button>
-)}
+                            
+                            {/* Submit Button - Only show if status is selected */}
+                            {availableOptions.length > 0 && (userRole === "admin" || userRole === "superadmin") && (
+                              <button
+                                onClick={() => handleSubmitStatusUpdate(delivery.order_id)}
+                                disabled={isCurrentOrderUpdating || !hasSelectedStatus}
+                                className={`px-3 py-2 text-xs text-white rounded-lg transition-all ${
+                                  currentMode === "Dark"
+                                    ? "bg-blue-500 hover:bg-blue-600"
+                                    : "bg-blue-600 hover:bg-blue-700"
+                                } disabled:opacity-50`}
+                              >
+                                {isCurrentOrderUpdating ? "Updating..." : "Submit"}
+                              </button>
+                            )}
 
                          
                         </div>
@@ -333,16 +507,16 @@ const PhysicalDelivery = () => {
               )}
             </tbody>
           </table>
-          
-          {/* Pagination Component */}
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={(page) => setCurrentPage(page)}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
-          />
         </div>
+        
+        {/* Pagination Component */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(page) => dispatch(setCurrentPage(page))}
+          totalItems={totalItems}
+          itemsPerPage={itemsPerPage}
+        />
       </div>
 
       {/* --- Modals --- */}

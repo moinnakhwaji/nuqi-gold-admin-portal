@@ -5,6 +5,11 @@ const initialState = {
   deliveries: [],
   loading: false,
   error: null,
+  // UI State
+  activeStatus: "PLACED",
+  search: "",
+  currentPage: 1,
+  itemsPerPage: 10,
 };
 
 const physicalDeliverySlice = createSlice({
@@ -19,6 +24,18 @@ const physicalDeliverySlice = createSlice({
     },
     setError: (state, action) => {
       state.error = action.payload;
+    },
+    // UI State Actions
+    setActiveStatus: (state, action) => {
+      state.activeStatus = action.payload;
+      state.currentPage = 1; // Reset page when status changes
+    },
+    setSearch: (state, action) => {
+      state.search = action.payload;
+      state.currentPage = 1; // Reset page when search changes
+    },
+    setCurrentPage: (state, action) => {
+      state.currentPage = action.payload;
     },
   },
   extraReducers: (builder) => {
@@ -73,5 +90,22 @@ const physicalDeliverySlice = createSlice({
   },
 });
 
-export const { setDeliveries, setLoading, setError } = physicalDeliverySlice.actions;
+export const {
+  setDeliveries,
+  setLoading,
+  setError,
+  setActiveStatus,
+  setSearch,
+  setCurrentPage,
+} = physicalDeliverySlice.actions;
+
+// Selectors
+export const selectDeliveries = (state) => state.physicalDelivery.deliveries;
+export const selectLoading = (state) => state.physicalDelivery.loading;
+export const selectError = (state) => state.physicalDelivery.error;
+export const selectActiveStatus = (state) => state.physicalDelivery.activeStatus;
+export const selectSearch = (state) => state.physicalDelivery.search;
+export const selectCurrentPage = (state) => state.physicalDelivery.currentPage;
+export const selectItemsPerPage = (state) => state.physicalDelivery.itemsPerPage;
+
 export default physicalDeliverySlice.reducer;
