@@ -114,9 +114,9 @@ const PhysicalDelivery = () => {
         order_id: orderId,
         status_to: newStatus,
         message: `Order status updated to ${newStatus}`,
-        actor: userRole,
+        actor: "admin",
       }).unwrap();
-
+console.log("Status update result:", result);
       toast.dismiss(toastId);
       toast.success(`Order status successfully updated to ${newStatus}`);
       
@@ -163,7 +163,7 @@ const PhysicalDelivery = () => {
 
   const handleStatusSelection = (orderId, status) => {
     setSelectedStatus(prev => ({ ...prev, [orderId]: status }));
-    setOpenDropdown(null); // Close dropdown after selection
+    setOpenDropdown(null); 
   };
 
   // Handlers for Delivery Details Modal

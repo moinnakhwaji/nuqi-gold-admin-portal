@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { FaEye, FaBell } from 'react-icons/fa';
+import { FaEye } from 'react-icons/fa';
 import { useStateContext } from '../../contexts/ContextProvider';
 import {
   useGetBankKycQuery,
@@ -9,6 +9,7 @@ import {
   useUpdateKycRecordStatusMutation,
   useGetOnHoldBankKycMutation,
   useLazyExportBankKycRecordsQuery,
+  useUpdateOnHoldKycStatusMutation, // <-- Import the new mutation hook
 } from '../../redux/slices/Bankverification/bankverificationapi';
 import EmptyState from '../../components/EmptyState';
 import Header from '../../components/Header';
@@ -18,7 +19,6 @@ import ReasonModal from '../../components/ReasonModal';
 import BankDetailModal from '../../components/bankverification/BankDetailModal';
 import ExportCSVButton from '../../components/ExportCSVButton';
 import SortableTableHeader from '../../components/SortableTableHeader';
-
 
 // Helper to determine tailwind classes based on KYC status
 const getStatusClasses = (status) => {
@@ -43,7 +43,7 @@ const BankVerification = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const [selectedTab, setSelectedTab] = useState('pending');
+  const [selectedTab, setSelectedTab] = useState('');
   const [sortField, setSortField] = useState('createdAt');
   const [sortDirection, setSortDirection] = useState('desc');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -53,7 +53,7 @@ const BankVerification = () => {
   const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
   const [selectedKycId, setSelectedKycId] = useState(null);
 
-  // Map frontend tab names to backend type values (matching your new API)
+  // Map frontend tab names to backend type values
   const getTypeFromTab = (tab) => {
     switch (tab) {
       case 'pending':
@@ -86,9 +86,10 @@ const BankVerification = () => {
   });
   const [updateBankDetails, { isLoading: isUpdatingBankDetails }] = useUpdateBankDetailsMutation();
   const [updateKycRecordStatus] = useUpdateKycRecordStatusMutation();
+  const [updateOnHoldKycStatus] = useUpdateOnHoldKycStatusMutation(); // <-- Instantiate new hook
   const [getOnHoldBankKyc, { isLoading: isSendingReminder }] = useGetOnHoldBankKycMutation();
 
-  // Minimal data processing - backend provides all formatted data
+  // Data processing
   const processDataWithRelevantDetails = (dataToProcess = []) => {
     return dataToProcess.map((bankDetail) => ({
       user_id: bankDetail.userId,
@@ -121,12 +122,8 @@ const BankVerification = () => {
         bValue = bValue ? new Date(bValue).getTime() : 0;
       }
 
-      if (typeof aValue === "string" && aValue !== "") {
-        aValue = aValue.toLowerCase();
-      }
-      if (typeof bValue === "string" && bValue !== "") {
-        bValue = bValue.toLowerCase();
-      }
+      if (typeof aValue === "string" && aValue !== "") aValue = aValue.toLowerCase();
+      if (typeof bValue === "string" && bValue !== "") bValue = bValue.toLowerCase();
 
       if (direction === "asc") {
         if (aValue > bValue) return 1;
@@ -178,7 +175,6 @@ const BankVerification = () => {
       return;
     }
     
-    // Backend now provides all bank details and KYC records directly
     setSelectedUser(user);
     setIsModalOpen(true);
   };
@@ -207,7 +203,6 @@ const BankVerification = () => {
     setEditedDetails((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Saves updated bank details using RTK Query mutation
   const handleSaveChanges = async (bankDetail) => {
     try {
       const payload = {
@@ -220,7 +215,7 @@ const BankVerification = () => {
       };
       
       await updateBankDetails({ user_id: bankDetail.user_id, body: payload }).unwrap();
-      
+      console.log('Bank details updated successfully', payload, bankDetail);
       toast.success('Bank details updated successfully');
       closeModal();
     } catch (err) {
@@ -229,23 +224,29 @@ const BankVerification = () => {
     }
   };
 
-  // Updates KYC status using RTK Query mutation
+  // *** MODIFIED FUNCTION ***
+  // Updates KYC status using the appropriate RTK Query mutation
   const handleUpdateKycStatus = async (status, id, reason = null) => {
     try {
       const lowercaseStatus = status.toLowerCase();
 
-      await updateKycRecordStatus({ id, status: lowercaseStatus, reason }).unwrap();
+      if (lowercaseStatus === 'on_hold') {
+        // Use the dedicated hook for 'ON_HOLD' status
+        await updateOnHoldKycStatus({ id, reason }).unwrap();
+      } else {
+        // Use the general hook for 'APPROVED' and 'REJECTED'
+        await updateKycRecordStatus({ id, status: lowercaseStatus, reason }).unwrap();
+      }
       
       toast.success(`KYC record has been updated to ${status}.`);
       closeModal();
       setIsReasonModalOpen(false);
     } catch (err) {
-      console.error(`Error updating KYC status:`, err);
+      console.error(`Error updating KYC status to ${status}:`, err);
       toast.error(err.data?.message || `Failed to update KYC status.`);
     }
   };
   
-  // Sends a reminder for 'On Hold' KYC using RTK Query mutation
   const handleSendReminder = async (bankDetail) => {
     try {
       await getOnHoldBankKyc(bankDetail.id).unwrap();
@@ -255,23 +256,13 @@ const BankVerification = () => {
       console.error('Error sending reminder:', err);
     }
   };
-
-  // Sorting is now handled by the backend, so this function is not needed anymore
   
   const handleReasonConfirm = (reason) => {
     if (selectedKycId) {
-      // Pass the lowercase status for backend consistency
       handleUpdateKycStatus('on_hold', selectedKycId, reason);
     }
   };
-  
-  const convertTimestampToDays = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const diffDays = Math.floor((new Date() - new Date(timestamp)) / (1000 * 60 * 60 * 24));
-    return `${diffDays} days ago`;
-  };
 
-  // Format date helper function
   const formatDate = (dateString) => {
     if (!dateString) return "";
     try {
@@ -281,10 +272,8 @@ const BankVerification = () => {
     }
   };
 
-
   const transformDocumentUrl = (url) => url?.replace(':7777/', ':7000/');
 
-  // Show loading state
   if (isLoading || isFetching) {
     return (
       <div
@@ -307,7 +296,6 @@ const BankVerification = () => {
     );
   }
 
-  // Show error state
   if (error) {
     return (
       <div
@@ -330,7 +318,6 @@ const BankVerification = () => {
     );
   }
 
-  // Show empty state when no data at all
   if (bankKycRecords.length === 0) {
     return (
       <div
@@ -351,7 +338,6 @@ const BankVerification = () => {
     );
   }
 
-  // Show simplified view when no records for current tab
   if (filteredData.length === 0) {
     return (
       <div
@@ -364,7 +350,6 @@ const BankVerification = () => {
         <ToastContainer />
         <Header category="Page" title="Bank KYC Verification" />
         
-        {/* Tab Navigation */}
         <div className="mb-4">
           <div className="flex justify-start gap-4 p-2">
             {['pending', 'approved', 'rejected', 'on_hold'].map(tab => (
@@ -405,7 +390,6 @@ const BankVerification = () => {
       <ToastContainer />
       <Header category="Page" title="Bank KYC Verification" />
       
-      {/* Search Box and Export Button */}
       <div className="mb-4 flex items-center justify-between">
         <SearchBox
           value={searchTerm}
@@ -423,7 +407,6 @@ const BankVerification = () => {
         />
       </div>
 
-      {/* Tab Navigation */}
       <div className="mb-4">
         <div className="flex justify-start gap-4 p-2">
           {['pending', 'approved', 'rejected', 'on_hold'].map(tab => (
@@ -440,7 +423,6 @@ const BankVerification = () => {
         </div>
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto">
         <table
           className={`min-w-max border ${
@@ -502,7 +484,7 @@ const BankVerification = () => {
                 Status
               </SortableTableHeader>
               <th 
-                className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
+                className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
                   currentMode === "Dark" ? "text-gray-300" : "text-gray-500"
                 }`}
               >
@@ -597,7 +579,6 @@ const BankVerification = () => {
         </table>
       </div>
 
-      {/* Pagination */}
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
@@ -607,7 +588,6 @@ const BankVerification = () => {
         recordsCount={bankKycRecords.length}
       />
 
-      {/* No Records Message for search results */}
       {filteredData.length === 0 && debouncedSearchTerm && (
         <EmptyState
           title="No Bank KYC Records Found"
@@ -644,8 +624,8 @@ const BankVerification = () => {
         isOpen={isReasonModalOpen}
         onClose={() => setIsReasonModalOpen(false)}
         onConfirm={handleReasonConfirm}
-          userId={selectedUser?.user_id}
-          bankId={selectedUser?.allBankDetails[0]?.id}
+        userId={selectedUser?.user_id}
+        bankId={selectedUser?.allBankDetails[0]?.id}
         title="Select Reason for Hold"
       />
     </div>

@@ -17,7 +17,7 @@ const token = localStorage.getItem("authToken");
   },
 });
 
-// Base API slice that can be extended
+
 export const apiSlice = createApi({
   reducerPath: 'api',
   baseQuery,
