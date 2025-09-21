@@ -510,12 +510,14 @@ console.log("Status update result:", result);
         </div>
         
         {/* Pagination Component */}
+            {/* Pagination Component */}
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
           onPageChange={(page) => dispatch(setCurrentPage(page))}
-          totalItems={totalItems}
-          itemsPerPage={itemsPerPage}
+          totalRecords={totalItems}     
+          backendLimit={itemsPerPage}   
+          recordsCount={paginatedDeliveries.length}
         />
       </div>
 
