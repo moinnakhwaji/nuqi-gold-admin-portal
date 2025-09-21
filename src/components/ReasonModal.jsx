@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 
-
-
 const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', userId, bankId }) => {
   // Only log when we have actual data
   if (isOpen && bankId) {
@@ -19,7 +17,7 @@ const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', user
     const fetchData = async () => {
       try {
         // Fetch reasons
-        const reasonsResponse = await fetch('https://mauapi.nuqigold.com/admin/reasons');
+        const reasonsResponse = await fetch('https://mauapiuat.nuqigold.com/admin/reasons');
         const reasonsData = await reasonsResponse.json();
         console.log('📋 Available reasons:', reasonsData);
         setReasons(reasonsData);
@@ -33,7 +31,7 @@ const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', user
             method: 'get',
             url: 'https://uatapi.nuqigold.com/user/onhold_bankKyc/bankId',
             data: {
-              bankId: parseInt(bankId, 10), // ✅ radix added
+              bankId: parseInt(bankId, 10),
             },
             headers: {
               Authorization: `Bearer ${token}`,
@@ -68,7 +66,7 @@ const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', user
         }
 
         const selectedReasonData = reasons.find(
-          (reason) => reason.id === parseInt(selectedReason, 10) // ✅ radix + parentheses
+          (reason) => reason.id === parseInt(selectedReason, 10)
         );
         const templateId = selectedReasonData?.templateId;
 
@@ -84,7 +82,7 @@ const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', user
           {
             status: 'on_hold',
             templateId,
-            BankId: parseInt(bankId, 10), // ✅ radix
+            BankId: parseInt(bankId, 10),
           },
           {
             headers: {
@@ -121,28 +119,28 @@ const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', user
   return (
     // Backdrop
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm"
       aria-labelledby="reason-modal-title"
       role="dialog"
       aria-modal="true"
     >
       {/* Modal Box */}
-      <div className="relative w-full max-w-md p-6 mx-4 font-sans bg-[#030127] border border-gray-700/50 rounded-xl shadow-lg text-white">
+      <div className="relative w-full max-w-md p-6 mx-4 font-sans bg-white border border-gray-200 rounded-xl shadow-lg text-gray-800">
         {/* Modal Title */}
         <h2
           id="reason-modal-title"
-          className="mb-4 text-xl font-bold text-center text-white"
+          className="mb-4 text-xl font-bold text-center text-gray-900"
         >
           {title}
         </h2>
 
         {/* Previous On Hold Details Section (conditionally rendered) */}
         {onHoldDetails && (
-          <div className="mb-5 p-3 bg-blue-500/10 rounded-lg">
-            <p className="mb-1 text-sm text-gray-400">
+          <div className="mb-5 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="mb-1 text-sm text-gray-600">
               Previous On Hold Details:
             </p>
-            <p className="text-white text-sm">
+            <p className="text-gray-800 text-sm">
               Reason: {onHoldDetails.reason}
             </p>
             <p className="mt-1 text-xs text-gray-500">
@@ -158,13 +156,13 @@ const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', user
             console.log('Selected reason:', e.target.value);
             setSelectedReason(e.target.value);
           }}
-          className="w-full p-2.5 mb-5 text-white bg-transparent border border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition"
+          className="w-full p-2.5 mb-5 text-gray-900 bg-white border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 hover:border-gray-400 transition"
         >
-          <option value="" disabled className="bg-[#030127]">
+          <option value="" disabled className="text-gray-500">
             Select Reason
           </option>
           {reasons.map((reason) => (
-            <option key={reason.id} value={reason.id} className="bg-[#030127]">
+            <option key={reason.id} value={reason.id} className="bg-white text-gray-900">
               {reason.reason}
             </option>
           ))}
@@ -175,7 +173,7 @@ const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', user
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-white border border-gray-600 rounded-md hover:border-gray-400 transition"
+            className="px-4 py-2 text-gray-700 bg-transparent border border-gray-300 rounded-md hover:bg-gray-100 transition"
           >
             Cancel
           </button>
@@ -183,7 +181,7 @@ const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', user
             type="button"
             onClick={handleConfirm}
             disabled={!selectedReason || loading}
-            className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed transition"
+            className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition"
           >
             {loading ? 'Submitting...' : 'Confirm'}
           </button>
