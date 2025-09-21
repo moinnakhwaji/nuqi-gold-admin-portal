@@ -95,7 +95,9 @@ const BankVerification = () => {
       user_id: bankDetail.userId,
       fullName: bankDetail.fullName,
       relevantBankDetail: bankDetail,
-      allBankDetails: bankDetail.previousBankRecords || [bankDetail],
+      // Since backend now correctly excludes latest bank detail from previousBankRecords,
+      // we need to include it in allBankDetails for the modal display
+      allBankDetails: [bankDetail, ...(bankDetail.previousBankRecords || [])],
       kycRecords: bankDetail.kycRecords || [],
     }));
   };
