@@ -1,8 +1,5 @@
-// src/redux/slices/bank-kyc/bankkycApi.js
-
 import { apiSlice } from "../../api/api";
 
-// 1. Define the API endpoints by injecting them into the root apiSlice
 export const bankverificationApi = apiSlice.injectEndpoints({
   overrideExisting: true,
   endpoints: (builder) => ({
@@ -92,12 +89,12 @@ export const bankverificationApi = apiSlice.injectEndpoints({
   }),
 });
 
-// 2. Export the auto-generated hooks for use in your React components
+
 export const {
   useGetBankKycQuery,
   useUpdateBankDetailsMutation,
   useUpdateOnHoldKycStatusMutation,
   useUpdateKycRecordStatusMutation,
   useGetOnHoldBankKycMutation,
-  useLazyExportBankKycRecordsQuery, // For on-demand fetching, like the export button
+  useLazyExportBankKycRecordsQuery,
 } = bankverificationApi;
