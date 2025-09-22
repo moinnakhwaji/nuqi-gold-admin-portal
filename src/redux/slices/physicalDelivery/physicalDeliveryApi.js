@@ -14,9 +14,9 @@ export const physicalDeliveryApi = apiSlice.injectEndpoints({
         },
       }),
       
-      // --- CORRECTED TRANSFORMRESPONSE BLOCK ---
+
       transformResponse: (response) => {
-        // Now we correctly access the nested pagination object
+  
         return {
           data: response.data || [],
           totalRecords: response.pagination.totalRecords || 0, // CORRECT PATH
@@ -29,8 +29,22 @@ export const physicalDeliveryApi = apiSlice.injectEndpoints({
     }),
 
     // ... (rest of your endpoints are fine)
-    updatePhysicalDeliveryStatus: builder.mutation({ /* ... */ }),
-    exportPhysicalDeliveries: builder.query({ /* ... */ }),
+ updatePhysicalDeliveryStatus: builder.mutation({
+      query: ({ order_id, status_to, message, actor }) => ({
+        url: "operations/physical-delivery",
+        method: "PUT",
+        body: { order_id, status_to, message, actor },
+      }),
+      invalidatesTags: ["PhysicalDelivery"],
+    }),
+    exportPhysicalDeliveries: builder.query({
+      query: (params) => ({
+        url: "operations/physical-delivery",
+        method: 'GET',
+        params: { ...params, export: 'csv' }, // Add export=csv parameter
+        responseHandler: (response) => response.blob(), // Handle the response as a blob
+      }),
+    }),
   }),
 });
 

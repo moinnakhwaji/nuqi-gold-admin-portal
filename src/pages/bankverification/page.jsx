@@ -86,8 +86,9 @@ const BankVerification = () => {
   });
   const [updateBankDetails, { isLoading: isUpdatingBankDetails }] = useUpdateBankDetailsMutation();
   const [updateKycRecordStatus] = useUpdateKycRecordStatusMutation();
-  const [updateOnHoldKycStatus] = useUpdateOnHoldKycStatusMutation(); // <-- Instantiate new hook
+  // const [updateOnHoldKycStatus] = useUpdateOnHoldKycStatusMutation(); // <-- Instantiate new hook
   const [getOnHoldBankKyc, { isLoading: isSendingReminder }] = useGetOnHoldBankKycMutation();
+  // console.log('Fetched bank KYC data:', getOnHoldBankKyc.data);
 
   // Data processing
   const processDataWithRelevantDetails = (dataToProcess = []) => {
@@ -232,7 +233,8 @@ const BankVerification = () => {
 
       if (lowercaseStatus === 'on_hold') {
         // Use the dedicated hook for 'ON_HOLD' status
-        await updateOnHoldKycStatus({ id, reason }).unwrap();
+        // await updateOnHoldKycStatus({ id, reason }).unwrap();
+        console.log('ON_HOLD status updated with reason:', reason, id);
       } else {
         // Use the general hook for 'APPROVED' and 'REJECTED'
         await updateKycRecordStatus({ id, status: lowercaseStatus, reason }).unwrap();

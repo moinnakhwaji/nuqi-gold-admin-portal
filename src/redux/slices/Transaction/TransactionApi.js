@@ -1,30 +1,24 @@
+
+
 import { apiSlice } from "../../api/api";
 
 export const transactionApi = apiSlice.injectEndpoints({
   overrideExisting: true,
   endpoints: (builder) => ({
+
     getTransactions: builder.query({
       query: (params = {}) => {
-        // This part correctly builds the query parameters
         const queryParams = {
           page: params.page || 1,
           limit: params.limit || 10,
         };
 
-        if (params.search) {
-          queryParams.search = params.search;
-        }
-        // It's ready to accept a status
-        if (params.status && params.status !== 'all') {
-          queryParams.status = params.status;
-        }
-        // It's ready to accept dates
-        if (params.startDate) {
-          queryParams.startDate = new Date(params.startDate).toISOString().split('T')[0];
-        }
-        if (params.endDate) {
-          queryParams.endDate = new Date(params.endDate).toISOString().split('T')[0];
-        }
+        if (params.search) queryParams.search = params.search;
+        if (params.status && params.status !== 'all') queryParams.status = params.status;
+        if (params.startDate) queryParams.startDate = params.startDate;
+        if (params.endDate) queryParams.endDate = params.endDate;
+        if (params.sortField) queryParams.sortField = params.sortField;
+        if (params.sortDirection) queryParams.sortDirection = params.sortDirection;
 
         return {
           url: "operations/transactions/all",
@@ -34,8 +28,9 @@ export const transactionApi = apiSlice.injectEndpoints({
       },
       providesTags: ["Transactions"],
     }),
-    // ... exportTransactions endpoint
-        exportTransactions: builder.query({
+    
+ 
+    exportTransactions: builder.query({
       query: (params = {}) => ({
         url: "operations/transactions/all",
         method: "GET",
@@ -43,10 +38,15 @@ export const transactionApi = apiSlice.injectEndpoints({
           ...params,
           export: "csv",
         },
-        responseHandler: (response) => response.blob(),
+         responseHandler: (response) => response.blob(),
       }),
+
+
+   
+
     }),
   }),
 });
 
-export const { useGetTransactionsQuery, useLazyExportTransactionsQuery } = transactionApi;
+
+export const { useGetTransactionsQuery, useLazyExportTransactionsQuery } = transactionApi;0

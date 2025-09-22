@@ -279,22 +279,8 @@ const KycVerifiedPage = () => {
               >
                 Full Name
               </SortableTableHeader>
-              <SortableTableHeader
-                field="fullNameHindi"
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              >
-                Full Name (Hindi)
-              </SortableTableHeader>
-              <SortableTableHeader
-                field="dateOfBirth"
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              >
-                Date of Birth
-              </SortableTableHeader>
+         
+          
               <SortableTableHeader
                 field="documentType"
                 sortField={sortField}
@@ -303,14 +289,7 @@ const KycVerifiedPage = () => {
               >
                 Document Type
               </SortableTableHeader>
-              <SortableTableHeader
-                field="sex"
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              >
-                Gender
-              </SortableTableHeader>
+            
               <SortableTableHeader
                 field="address"
                 sortField={sortField}
@@ -319,38 +298,7 @@ const KycVerifiedPage = () => {
               >
                 Address
               </SortableTableHeader>
-              <SortableTableHeader
-                field="match"
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              >
-                Match Status
-              </SortableTableHeader>
-              <SortableTableHeader
-                field="matchLevel"
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              >
-                Match Level
-              </SortableTableHeader>
-              <SortableTableHeader
-                field="sdkType"
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              >
-                SDK Type
-              </SortableTableHeader>
-              <SortableTableHeader
-                field="sdkVersion"
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              >
-                SDK Version
-              </SortableTableHeader>
+             
               <SortableTableHeader
                 field="createdAt"
                 sortField={sortField}
@@ -366,6 +314,14 @@ const KycVerifiedPage = () => {
                 onSort={handleSort}
               >
                 Updated At
+              </SortableTableHeader>
+                  <SortableTableHeader
+                field="dateOfBirth"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              >
+                Date of Birth
               </SortableTableHeader>
             </tr>
           </thead>
@@ -399,20 +355,8 @@ const KycVerifiedPage = () => {
                 >
                   {record.fullName || "-"}
                 </td>
-                <td
-                  className={`px-6 py-4 whitespace-nowrap text-sm ${
-                    currentMode === "Dark" ? "text-white" : "text-gray-500"
-                  }`}
-                >
-                  {record.fullNameHindi || "-"}
-                </td>
-                <td
-                  className={`px-6 py-4 whitespace-nowrap text-sm ${
-                    currentMode === "Dark" ? "text-white" : "text-gray-500"
-                  }`}
-                >
-                  {formatDateOfBirth(record.dateOfBirth) || "-"}
-                </td>
+             
+              
                 <td
                   className={`px-6 py-4 whitespace-nowrap text-sm ${
                     currentMode === "Dark" ? "text-white" : "text-gray-500"
@@ -420,13 +364,7 @@ const KycVerifiedPage = () => {
                 >
                   {record.documentType || "-"}
                 </td>
-                <td
-                  className={`px-6 py-4 whitespace-nowrap text-sm ${
-                    currentMode === "Dark" ? "text-white" : "text-gray-500"
-                  }`}
-                >
-                  {record.sex || "-"}
-                </td>
+             
                 <td
                   className={`px-6 py-4 text-sm ${
                     currentMode === "Dark" ? "text-white" : "text-gray-500"
@@ -438,42 +376,7 @@ const KycVerifiedPage = () => {
                     </p>
                   </div>
                 </td>
-                <td
-                  className={`px-6 py-4 whitespace-nowrap text-sm ${
-                    currentMode === "Dark" ? "text-white" : "text-gray-500"
-                  }`}
-                >
-                  <span
-                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      record.match
-                        ? "bg-green-100 text-green-800"
-                        : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {record.match ? "Matched" : "Not Matched"}
-                  </span>
-                </td>
-                <td
-                  className={`px-6 py-4 whitespace-nowrap text-sm ${
-                    currentMode === "Dark" ? "text-white" : "text-gray-500"
-                  }`}
-                >
-                  {record.matchLevel || "-"}
-                </td>
-                <td
-                  className={`px-6 py-4 whitespace-nowrap text-sm ${
-                    currentMode === "Dark" ? "text-white" : "text-gray-500"
-                  }`}
-                >
-                  {record.sdkType || "-"}
-                </td>
-                <td
-                  className={`px-6 py-4 whitespace-nowrap text-sm ${
-                    currentMode === "Dark" ? "text-white" : "text-gray-500"
-                  }`}
-                >
-                  {record.sdkVersion || "-"}
-                </td>
+              
                 <td
                   className={`px-6 py-4 whitespace-nowrap text-sm ${
                     currentMode === "Dark" ? "text-white" : "text-gray-500"
@@ -487,6 +390,13 @@ const KycVerifiedPage = () => {
                   }`}
                 >
                   {formatDate(record.updatedAt)}
+                </td>
+                  <td
+                  className={`px-6 py-4 whitespace-nowrap text-sm ${
+                    currentMode === "Dark" ? "text-white" : "text-gray-500"
+                  }`}
+                >
+                  {formatDateOfBirth(record.dateOfBirth) || "-"}
                 </td>
               </tr>
             ))}

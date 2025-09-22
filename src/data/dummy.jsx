@@ -134,7 +134,7 @@ export const links = [
       //   icon: <FiPieChart />,
       // },
       {
-        name: "TransactionsTable",
+        name: "Transactions",
         icon: <FiBook />,
       },
         {

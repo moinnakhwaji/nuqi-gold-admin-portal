@@ -46,8 +46,8 @@ export const bankverificationApi = apiSlice.injectEndpoints({
 
     // MUTATION to update the ON_HOLD status
     updateOnHoldKycStatus: builder.mutation({
-      query: ({ userId, reason }) => ({
-        url: `operations/bankkyc/onhold/status/${userId}`,
+      query: ({ id, reason }) => ({
+        url: `operations/bankkyc/onhold/status/${id}`,
         method: 'PUT',
         body: { reason }, 
       }),
@@ -68,7 +68,7 @@ export const bankverificationApi = apiSlice.injectEndpoints({
     getOnHoldBankKyc: builder.mutation({
       query: (bankId) => ({
         url: "operations/bankkyc/bankkyc/onhold",
-        method: "POST",
+        method: "GET",
         body: { bankId },
       }),
       // This action likely does not change the list data, so it doesn't need to invalidate the tag.
