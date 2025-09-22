@@ -95,7 +95,7 @@ const BankVerification = () => {
       user_id: bankDetail.userId,
       fullName: bankDetail.fullName,
       relevantBankDetail: bankDetail,
-      allBankDetails: bankDetail.previousBankRecords || [bankDetail],
+     allBankDetails: [bankDetail, ...(bankDetail.previousBankRecords || [])],
       kycRecords: bankDetail.kycRecords || [],
     }));
   };
