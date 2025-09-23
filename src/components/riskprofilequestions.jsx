@@ -9,7 +9,7 @@ const RiskProfileQuestions = ({ isOpen, onClose, answers }) => {
   // answers is an array of { questionId, question, answer }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center  bg-opacity-70 backdrop-blur-md">
       <div
         className={`rounded-2xl p-8 max-w-4xl w-full mx-4 shadow-2xl ${
           currentMode === "Dark"

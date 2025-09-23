@@ -43,7 +43,7 @@ const AdvancedFilters = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-opacity-50">
       <div ref={modalRef} className="bg-gradient-to-br from-black via-slate-900 to-black border border-gray-700/60 p-8 rounded-3xl max-w-3xl w-full overflow-y-auto h-[80vh] text-gray-100 shadow-xl">
         <button type="button" onClick={onClose} className="text-cyan-400 float-right font-extralight text-3xl">
           <AiOutlineClose size={25} className="text-cyan-400" />

@@ -17,7 +17,7 @@ const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', user
     const fetchData = async () => {
       try {
         // Fetch reasons
-        const reasonsResponse = await fetch('https://mauapi.nuqigold.com/admin/reasons');
+        const reasonsResponse = await fetch('https://mauapiuat.nuqigold.com/admin/reasons');
         const reasonsData = await reasonsResponse.json();
         console.log('📋 Available reasons:', reasonsData);
         setReasons(reasonsData);
@@ -119,7 +119,7 @@ const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', user
   return (
     // Backdrop
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center  bg-opacity-50 backdrop-blur-sm"
       aria-labelledby="reason-modal-title"
       role="dialog"
       aria-modal="true"

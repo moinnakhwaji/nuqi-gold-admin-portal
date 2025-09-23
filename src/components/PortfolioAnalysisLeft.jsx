@@ -10,7 +10,7 @@ const CustomTooltip = ({ active, payload }) => {
   if (active && payload?.length) {
     const { name, value } = payload[0];
     return (
-      <div className="p-2 bg-black text-white rounded-lg text-xs">
+      <div className="p-2  text-white rounded-lg text-xs">
         <p>{name}</p>
         <p>USD {Number(value).toFixed(2)}</p>
       </div>

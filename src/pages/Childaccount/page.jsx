@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { toast } from "react-toastify";
+import { toast, ToastContainer } from "react-toastify";
 import {
   useGetKidzAccountQuery,
   useLazyExportKidzAccountQuery,
@@ -62,8 +62,7 @@ const Childaccount = () => {
     useOnHoldChildUserMutation();
    const [getOnholdChildUser, { isLoading: isFetchingOnhold }] = useGetOnholdChildUserMutation();
 
-  // ✅ FIX 2: Refactored handleOnhold to use state directly, making it more reliable.
-  // It no longer needs the childId to be passed as an argument.
+ 
   const handleOnhold = async () => {
     if (!selectedRecord) {
       toast.error("Error: No record selected for this operation.");
@@ -296,6 +295,7 @@ const Childaccount = () => {
       await sendReminder({ childId, templateId: originalTemplateId }).unwrap();
       
       toast.success("Reminder sent successfully to the parent.");
+      alert("Reminder sent successfully to the parent.");
       handleCloseModal(); // Close modal on success
       
     } catch (err) {
@@ -354,6 +354,7 @@ const Childaccount = () => {
           : "bg-white shadow-lg border-1 border-blue-300"
       }`}
     >
+      a
       <Header category="Page" title="All Child Account Records" />
 
       <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
