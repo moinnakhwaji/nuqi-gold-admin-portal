@@ -4,7 +4,6 @@ export const bankverificationApi = apiSlice.injectEndpoints({
   overrideExisting: true,
   endpoints: (builder) => ({
     
-    // QUERY to fetch the list of KYC records
     getBankKyc: builder.query({
       query: (params = {}) => {
         const queryParams = {
@@ -23,14 +22,11 @@ export const bankverificationApi = apiSlice.injectEndpoints({
           params: queryParams,
         };
       },
-      /**
-       * ✅ FIX: Provides a specific tag for this list of data.
-       * When a mutation invalidates this tag, this query will be automatically refetched.
-       */
+
       providesTags: [{ type: 'BankKyc', id: 'LIST' }],
     }),
 
-    // MUTATION to update bank details
+
     updateBankDetails: builder.mutation({
       query: ({ user_id, body }) => ({
         url: `operations/bankkyc/bankkyc/${user_id}/details`,
@@ -44,7 +40,7 @@ export const bankverificationApi = apiSlice.injectEndpoints({
       invalidatesTags: [{ type: 'BankKyc', id: 'LIST' }],
     }),
 
-    // MUTATION to update the ON_HOLD status
+  
     updateOnHoldKycStatus: builder.mutation({
       query: ({ id, reason }) => ({
         url: `operations/bankkyc/onhold/status/${id}`,
@@ -71,10 +67,11 @@ export const bankverificationApi = apiSlice.injectEndpoints({
         method: "GET",
         body: { bankId },
       }),
-      // This action likely does not change the list data, so it doesn't need to invalidate the tag.
+     
+      invalidatesTags: [{ type: 'BankKyc', id: 'LIST' }],
     }),
 
-    // QUERY for exporting data (does not need tags)
+
     exportBankKycRecords: builder.query({
       query: (params = {}) => ({
         url: "operations/bankkyc/bankkyc",

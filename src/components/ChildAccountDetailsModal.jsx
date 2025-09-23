@@ -8,6 +8,9 @@ const ChildAccountDetailsModal = ({
   onApprove,
   onReject,
   onOnhold,
+  // 1. ACCEPT THE NEW PROPS
+  onSendReminder,
+  isSendingReminder,
   isApproving,
   isRejecting,
   isOnHoldLoading,
@@ -66,8 +69,10 @@ const ChildAccountDetailsModal = ({
         </div>
 
         {/* Modal Body */}
+        {/* --- NO CHANGES IN THE MODAL BODY --- */}
         <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* ... all your existing JSX for Child and Parent info ... */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Child Information */}
             <div className="space-y-4">
               <h4
@@ -350,48 +355,47 @@ const ChildAccountDetailsModal = ({
               </div>
             </div>
           </div>
-
-          {/* Template Selection Section (only show for pending status) */}
-          {selectedRecord.status === "pending" && templates && templates.length > 0 && (
-            <div className="space-y-4 border-t pt-4">
-              <h4
-                className={`text-sm font-medium uppercase tracking-wide ${
-                  currentMode === "Dark" ? "text-purple-400" : "text-purple-600"
-                }`}
-              >
-                Email Templates
-              </h4>
-              <div className="space-y-2">
-                <label
-                  className={`text-xs font-medium uppercase tracking-wide ${
-                    currentMode === "Dark" ? "text-gray-400" : "text-gray-500"
+            {selectedRecord.status === "pending" && templates && templates.length > 0 && (
+                // ...template selection JSX...
+                <div className="space-y-4 border-t pt-4">
+                <h4
+                  className={`text-sm font-medium uppercase tracking-wide ${
+                    currentMode === "Dark" ? "text-purple-400" : "text-purple-600"
                   }`}
                 >
-                  Select Template for Hold/Rejection
-                </label>
-                <select
-  value={selectedTemplateId || ""}
-  onChange={(e) => setSelectedTemplateId(e.target.value)}
-  className={`w-full px-3 py-2 text-sm rounded-lg border transition-colors ${
-    currentMode === "Dark"
-      ? "bg-slate-800 border-gray-600 text-white focus:border-blue-500"
-      : "bg-white border-gray-300 text-gray-900 focus:border-blue-500"
-  } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20`}
->
-  <option value="">Select a reason...</option>
-
-  {templates.map((template) =>
-    template.child_reasons.map((reasonObj, idx) => (
-      <option key={`${template.id}-${idx}`} value={template.id}>
-        {reasonObj.reason}
-      </option>
-    ))
-  )}
-</select>
-
+                  Email Templates
+                </h4>
+                <div className="space-y-2">
+                  <label
+                    className={`text-xs font-medium uppercase tracking-wide ${
+                      currentMode === "Dark" ? "text-gray-400" : "text-gray-500"
+                    }`}
+                  >
+                    Select Template for Hold/Rejection
+                  </label>
+                  <select
+    value={selectedTemplateId || ""}
+    onChange={(e) => setSelectedTemplateId(e.target.value)}
+    className={`w-full px-3 py-2 text-sm rounded-lg border transition-colors ${
+      currentMode === "Dark"
+        ? "bg-slate-800 border-gray-600 text-white focus:border-blue-500"
+        : "bg-white border-gray-300 text-gray-900 focus:border-blue-500"
+    } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20`}
+  >
+    <option value="">Select a reason...</option>
+  
+    {templates.map((template) =>
+      template.child_reasons.map((reasonObj, idx) => (
+        <option key={`${template.id}-${idx}`} value={template.id}>
+          {reasonObj.reason}
+        </option>
+      ))
+    )}
+  </select>
+  
+                </div>
               </div>
-            </div>
-          )}
+            )}
         </div>
 
         {/* Modal Footer */}
@@ -419,7 +423,9 @@ const ChildAccountDetailsModal = ({
                   </button>
                   <button
                     onClick={() => onOnhold && onOnhold(selectedRecord.id)}
-                    disabled={isApproving || isRejecting || isOnHoldLoading || !onOnhold}
+                    disabled={
+                      isApproving || isRejecting || isOnHoldLoading || !onOnhold || !selectedTemplateId
+                    }
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                       currentMode === "Dark"
                         ? "bg-orange-600 text-white hover:bg-orange-700 disabled:bg-orange-800 disabled:opacity-50"
@@ -430,7 +436,7 @@ const ChildAccountDetailsModal = ({
                   </button>
                   <button
                     onClick={() => onReject(selectedRecord.id)}
-                    disabled={isApproving || isRejecting || isOnHoldLoading}
+                    disabled={isApproving || isRejecting || isOnHoldLoading || !selectedTemplateId}
                     className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                       currentMode === "Dark"
                         ? "bg-red-600 text-white hover:bg-red-700 disabled:bg-red-800 disabled:opacity-50"
@@ -462,17 +468,21 @@ const ChildAccountDetailsModal = ({
                 >
                   Rejected
                 </button>
+                
+              // 2. REPLACE THE OLD "ONHOLD" BUTTON WITH THE NEW "SEND REMINDER" BUTTON
               ) : selectedRecord.status === "onhold" || selectedRecord.status === "on_hold" ? (
                 <button
-                  disabled
+                  onClick={() => onSendReminder(selectedRecord.id)}
+                  disabled={isSendingReminder}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    currentMode === "Dark"
-                      ? "bg-orange-800 text-orange-300 opacity-60"
-                      : "bg-orange-200 text-orange-700 opacity-60"
-                  } cursor-not-allowed`}
+                    currentMode === 'Dark'
+                      ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-800'
+                      : 'bg-blue-500 text-white hover:bg-blue-600 disabled:bg-blue-400'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  On Hold
+                  {isSendingReminder ? "Sending..." : "Send Reminder"}
                 </button>
+                
               ) : (
                 <button
                   disabled

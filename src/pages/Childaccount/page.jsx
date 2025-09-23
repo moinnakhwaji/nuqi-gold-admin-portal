@@ -7,6 +7,8 @@ import {
   useRejectKidzAccountMutation,
   useGetChildTemplatesQuery,
   useOnHoldChildUserMutation,
+  useGetOnholdChildUserMutation,
+  useSendReminderMutation,
 } from "../../redux/slices/kidzaccount/KidzApi";
 import {
   Header,
@@ -39,7 +41,7 @@ const Childaccount = () => {
   const { data: templatesData } = useGetChildTemplatesQuery();
   // ✅ FIX 1: Access the nested 'data' property from the API response
   const templates = templatesData?.data || [];
-
+ const [sendReminder, { isLoading: isSendingReminder }] = useSendReminderMutation();
   const [selectedTemplateId, setSelectedTemplateId] = useState(null);
 
   useEffect(() => {
@@ -58,6 +60,7 @@ const Childaccount = () => {
 
   const [onHoldChildUser, { isLoading: isOnHoldLoading }] =
     useOnHoldChildUserMutation();
+   const [getOnholdChildUser, { isLoading: isFetchingOnhold }] = useGetOnholdChildUserMutation();
 
   // ✅ FIX 2: Refactored handleOnhold to use state directly, making it more reliable.
   // It no longer needs the childId to be passed as an argument.
@@ -246,6 +249,60 @@ const Childaccount = () => {
 
   const handleCloseStatusModal = () => {
     setStatusModal({ isOpen: false, type: "success", title: "", message: "" });
+  };
+  const handleSendReminder = async (childId) => {
+    if (!selectedRecord) {
+      toast.error("Error: No record selected for this operation.");
+      return;
+    }
+
+    const parentId = selectedRecord.parentId;
+    if (!parentId) {
+      toast.error("Parent ID not found for this user. Cannot send reminder.");
+      return;
+    }
+
+    try {
+      // Step 1: Call the backend to get all on-hold records for this parent
+      const onholdResponse = await getOnholdChildUser(parentId).unwrap();
+
+      // The backend returns { success, message, data: [...] }
+      const onholdRecords = onholdResponse.data;
+
+      if (!Array.isArray(onholdRecords)) {
+        console.error("Received unexpected data format for on-hold records:", onholdResponse);
+        toast.error("Could not verify on-hold status. Invalid response from server.");
+        return;
+      }
+      
+      // Step 2: Find the specific record for the current child from the response array
+      const onholdRecord = onholdRecords.find(
+        (record) => record.child_id === childId
+      );
+
+      if (!onholdRecord) {
+        toast.error("This user is no longer on hold or the record could not be found.");
+        return;
+      }
+
+      // Step 3: Extract the original templateId and send the reminder
+      const originalTemplateId = onholdRecord.templateId;
+
+      if (!originalTemplateId) {
+          toast.error("Could not find the original on-hold reason. Reminder cannot be sent.");
+          return;
+      }
+
+      await sendReminder({ childId, templateId: originalTemplateId }).unwrap();
+      
+      toast.success("Reminder sent successfully to the parent.");
+      handleCloseModal(); // Close modal on success
+      
+    } catch (err) {
+      console.error("Error during reminder process:", err);
+      const errorMessage = err.data?.message || "An error occurred while sending the reminder.";
+      toast.error(errorMessage);
+    }
   };
 
   const handleApprove = async (childId) => {
@@ -591,6 +648,9 @@ const Childaccount = () => {
         templates={templates}
         selectedTemplateId={selectedTemplateId}
         setSelectedTemplateId={setSelectedTemplateId}
+        isSendingReminder={isSendingReminder} // <-- Pass the loading state
+        onSendReminder={handleSendReminder} // <-- Pass the handler
+
       />
 
       <StatusModal

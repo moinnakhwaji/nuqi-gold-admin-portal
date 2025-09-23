@@ -86,6 +86,19 @@ export const kidzApi = apiSlice.injectEndpoints({
       }),
       invalidatesTags: ["KidzAccount"],
     }),
+     getOnholdChildUser: builder.mutation({
+      query: (parentId) => ({
+        url: `/operations/kidz/onhold/${parentId}`,
+        method: "GET",
+      }),
+    }),
+    sendReminder: builder.mutation({
+      query: ({ childId, templateId }) => ({
+        url: `/operations/kidz/send-reminder/${childId}`,
+        method: "POST",
+        body: { templateId },
+      }),
+    }),
   }),
 });
 
@@ -96,4 +109,6 @@ export const {
   useRejectKidzAccountMutation,
   useGetChildTemplatesQuery,
   useOnHoldChildUserMutation, 
+  useGetOnholdChildUserMutation,
+  useSendReminderMutation,
 } = kidzApi;
