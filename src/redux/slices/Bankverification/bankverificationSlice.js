@@ -36,6 +36,19 @@ const bankverificationSlice = createSlice({
         state.bankverification = action.payload.data || {};
         state.loading = false;
         state.error = null;
+      })
+      .addMatcher(bankverificationApi.endpoints.sendBankKycReminder.matchPending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addMatcher(bankverificationApi.endpoints.sendBankKycReminder.matchRejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message;
+      })
+      .addMatcher(bankverificationApi.endpoints.sendBankKycReminder.matchFulfilled, (state, action) => {
+        console.log("Bank verification reminder sent:", action.payload);
+        state.loading = false;
+        state.error = null;
       });
   },
 });

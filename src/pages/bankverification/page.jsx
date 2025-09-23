@@ -7,9 +7,10 @@ import {
   useGetBankKycQuery,
   useUpdateBankDetailsMutation,
   useUpdateKycRecordStatusMutation,
-  useGetOnHoldBankKycMutation,
   useLazyExportBankKycRecordsQuery,
   useUpdateOnHoldKycStatusMutation, // <-- Import the new mutation hook
+  useLazyGetOnHoldBankKycQuery, // <-- Import the lazy on-hold records query
+  useSendBankKycReminderMutation, // <-- Import the new reminder mutation hook
 } from '../../redux/slices/Bankverification/bankverificationapi';
 import EmptyState from '../../components/EmptyState';
 import Header from '../../components/Header';
@@ -44,7 +45,7 @@ const BankVerification = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [selectedTab, setSelectedTab] = useState('');
-  const [sortField, setSortField] = useState('createdAt');
+  const [sortField, setSortField] = useState('');
   const [sortDirection, setSortDirection] = useState('desc');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -87,7 +88,8 @@ const BankVerification = () => {
   const [updateBankDetails, { isLoading: isUpdatingBankDetails }] = useUpdateBankDetailsMutation();
   const [updateKycRecordStatus] = useUpdateKycRecordStatusMutation();
   const [updateOnHoldKycStatus] = useUpdateOnHoldKycStatusMutation(); // <-- Instantiate new hook
-  const [getOnHoldBankKyc, { isLoading: isSendingReminder }] = useGetOnHoldBankKycMutation();
+  const [sendBankKycReminder, { isLoading: isSendingBankReminder }] = useSendBankKycReminderMutation();
+  const [getOnHoldBankKyc, { isLoading: isOnHoldLoading }] = useLazyGetOnHoldBankKycQuery();
 
   // Data processing
   const processDataWithRelevantDetails = (dataToProcess = []) => {
@@ -95,8 +97,6 @@ const BankVerification = () => {
       user_id: bankDetail.userId,
       fullName: bankDetail.fullName,
       relevantBankDetail: bankDetail,
-      // Since backend now correctly excludes latest bank detail from previousBankRecords,
-      // we need to include it in allBankDetails for the modal display
       allBankDetails: [bankDetail, ...(bankDetail.previousBankRecords || [])],
       kycRecords: bankDetail.kycRecords || [],
     }));
@@ -228,13 +228,13 @@ const BankVerification = () => {
 
   // *** MODIFIED FUNCTION ***
   // Updates KYC status using the appropriate RTK Query mutation
-  const handleUpdateKycStatus = async (status, id, reason = null) => {
+  const handleUpdateKycStatus = async (status, id,BankId, templateId, reason = null) => {
     try {
       const lowercaseStatus = status.toLowerCase();
 
       if (lowercaseStatus === 'on_hold') {
         // Use the dedicated hook for 'ON_HOLD' status
-        await updateOnHoldKycStatus({ id, reason }).unwrap();
+        await updateOnHoldKycStatus({ BankId, templateId }).unwrap();
       } else {
         // Use the general hook for 'APPROVED' and 'REJECTED'
         await updateKycRecordStatus({ id, status: lowercaseStatus, reason }).unwrap();
@@ -251,17 +251,99 @@ const BankVerification = () => {
   
   const handleSendReminder = async (bankDetail) => {
     try {
-      await getOnHoldBankKyc(bankDetail.id).unwrap();
-      toast.success('Reminder sent successfully!');
+      console.log("🔍 Fetching on-hold records for Bank ID:", bankDetail.id);
+      const onHoldResponse = await getOnHoldBankKyc({ bankId: bankDetail.id }).unwrap();
+
+      console.log("📊 All On Hold Records:", onHoldResponse);
+      const records = Array.isArray(onHoldResponse) ? onHoldResponse : (onHoldResponse?.data || []);
+      const onHoldData = records.find(
+        (record) => record.BankId === bankDetail.id
+      ) || records.find(
+        (record) => record.user_id === bankDetail.user_id
+      ) || records.find(
+        (record) => record.bankId === bankDetail.id
+      ) || records.find(
+        (record) => record.bank_id === bankDetail.id
+      ) || records.find(
+        (record) => record.id === bankDetail.id
+      );
+
+      console.log("🎯 Found Matching Record:", onHoldData);
+
+      if (!onHoldData) {
+        console.log("❌ No matching on-hold record found");
+        console.log("💡 Available records:", records);
+        throw new Error(`No on-hold record found for bank ID ${bankDetail.id} (user: ${bankDetail.user_id}). Available BankIds: ${records.map(r => r.BankId).join(', ')}`);
+      }
+
+      const { BankId, templateId, user_id } = onHoldData;
+      console.log("📋 Using Record Details:", {
+        BankId,
+        templateId,
+        user_id,
+        originalBankId: bankDetail.id,
+      });
+
+      if (!templateId || !BankId || !user_id) {
+        throw new Error("Missing required data from on-hold record");
+      }
+
+      console.log("📧 Sending reminder with dynamic templateId:", {
+        userId: user_id,
+        BankId,
+        templateId,
+        originalBankId: bankDetail.id,
+      });
+
+      console.log("📬 Template ID Details:", {
+        storedTemplateId: templateId,
+        reasonId: onHoldData.id || 'Unknown',
+        reasonText: `Reason ID ${onHoldData.id} (Template ${templateId})`,
+        bankDetail: {
+          id: bankDetail.id,
+          user_id: bankDetail.user_id,
+          account_status: bankDetail.account_status
+        },
+        onHoldRecord: onHoldData
+      });
+
+      await sendBankKycReminder({
+        userId: user_id,
+        BankId,
+        templateId,
+      }).unwrap();
+      
+      toast.success('Bank KYC reminder sent successfully!');
     } catch (err) {
-      toast.error(err.data?.message || 'Failed to send reminder');
       console.error('Error sending reminder:', err);
+      if (err.message === "No on-hold record found for this bank detail") {
+        toast.error("No on-hold record found for this bank detail");
+      } else if (err.message === "Missing required data from on-hold record") {
+        toast.error("Missing required data from on-hold record");
+      } else {
+        toast.error(err.data?.message || 'Failed to send reminder');
+      }
     }
   };
   
-  const handleReasonConfirm = (reason) => {
-    if (selectedKycId) {
-      handleUpdateKycStatus('on_hold', selectedKycId, reason);
+  const handleReasonConfirm = async (reasonData) => {
+    if (selectedKycId && selectedUser) {
+      try {
+        const { reason, templateId } = reasonData;
+        const BankId = selectedUser?.allBankDetails[0]?.id;
+        
+        await updateOnHoldKycStatus({ 
+          BankId, 
+          templateId 
+        }).unwrap();
+        
+        toast.success('KYC record has been put on hold successfully');
+        closeModal();
+        setIsReasonModalOpen(false);
+      } catch (err) {
+        console.error('Error putting KYC on hold:', err);
+        toast.error(err.data?.message || 'Failed to put KYC on hold');
+      }
     }
   };
 
@@ -282,7 +364,7 @@ const BankVerification = () => {
         className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
           currentMode === "Dark"
             ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
-            : "bg-white"
+            : "bg-white border-1 border-blue-400"
         }`}
       >
         <ToastContainer />
@@ -309,10 +391,27 @@ const BankVerification = () => {
       >
         <ToastContainer />
         <Header category="Page" title="Bank KYC Verification" />
+        
+        <div className="mb-4">
+          <div className="flex justify-start gap-4 p-2">
+            {['pending', 'approved', 'rejected', 'on_hold'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => handleTabChange(tab)}
+                className={`capitalize w-[200px] py-3 text-sm font-medium rounded-lg transition-all ${
+                  selectedTab === tab ? 'bg-blue-500 text-white shadow-md' : 'border border-blue-500 text-blue-500 hover:bg-blue-50'
+                }`}
+              >
+                {tab.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        </div>
+        
         <EmptyState
           variant="error"
           title="Unable to Load Bank KYC Data"
-          message="We encountered an issue while loading the bank KYC data. Please try refreshing the page or contact support if the problem persists."
+          message={`We encountered an issue while loading the ${selectedTab ? selectedTab.replace('_', ' ') : 'bank KYC'} data. Please try refreshing the page or contact support if the problem persists.`}
           buttonText="Refresh Page"
           onButtonClick={refetch}
         />
@@ -326,14 +425,31 @@ const BankVerification = () => {
         className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
           currentMode === "Dark"
             ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
-            : "bg-white shadow-lg border-1 border-yellow-400"
+            : "bg-white shadow-lg border-1 border-blue-400"
         }`}
       >
         <ToastContainer />
         <Header category="Page" title="Bank KYC Verification" />
+        
+        <div className="mb-4">
+          <div className="flex justify-start gap-4 p-2">
+            {['pending', 'approved', 'rejected', 'on_hold'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => handleTabChange(tab)}
+                className={`capitalize w-[200px] py-3 text-sm font-medium rounded-lg transition-all ${
+                  selectedTab === tab ? 'bg-blue-500 text-white shadow-md' : 'border border-blue-500 text-blue-500 hover:bg-blue-50'
+                }`}
+              >
+                {tab.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        </div>
+        
         <EmptyState
           title="No Bank KYC Records Found"
-          message="Bank KYC records will appear here once they are submitted."
+          message={`No ${selectedTab ? selectedTab.replace('_', ' ') : 'bank KYC'} records found. ${selectedTab === 'pending' ? 'New submissions will appear here.' : selectedTab === 'approved' ? 'Approved records will appear here.' : selectedTab === 'rejected' ? 'Rejected records will appear here.' : selectedTab === 'on_hold' ? 'On-hold records will appear here.' : 'Records will appear here once they are submitted.'}`}
           iconType="document"
         />
       </div>
@@ -359,7 +475,7 @@ const BankVerification = () => {
                 key={tab}
                 onClick={() => handleTabChange(tab)}
                 className={`capitalize w-[200px] py-3 text-sm font-medium rounded-lg transition-all ${
-                  selectedTab === tab ? 'bg-amber-500 text-white shadow-md' : 'border border-amber-500 text-amber-500 hover:bg-amber-50'
+                  selectedTab === tab ? 'bg-blue-500 text-white shadow-md' : 'border border-blue-500 text-blue-500 hover:bg-blue-50'
                 }`}
               >
                 {tab.replace('_', ' ')}
@@ -369,8 +485,8 @@ const BankVerification = () => {
         </div>
         
         <EmptyState
-          title="No Records Found"
-          message={`No records found for ${selectedTab.replace('_', ' ')} status.`}
+          title={`No ${selectedTab.replace('_', ' ')} Records Found`}
+          message={`No ${selectedTab.replace('_', ' ')} records found. ${selectedTab === 'pending' ? 'New bank KYC submissions are waiting for review.' : selectedTab === 'approved' ? 'No bank KYC records have been approved yet.' : selectedTab === 'rejected' ? 'No bank KYC records have been rejected yet.' : selectedTab === 'on_hold' ? 'No bank KYC records are currently on hold.' : 'No records found for this status.'}`}
           iconType="document"
           showRefreshButton
           buttonText="Refresh Records"
@@ -607,7 +723,7 @@ const BankVerification = () => {
          isEditable={isEditable}
          editedDetails={editedDetails}
          isUpdatingBankDetails={isUpdatingBankDetails}
-         isSendingReminder={isSendingReminder}
+         isSendingReminder={isSendingBankReminder}
          onClose={closeModal}
          onInputChange={handleInputChange}
          onEditClick={handleEditClick}

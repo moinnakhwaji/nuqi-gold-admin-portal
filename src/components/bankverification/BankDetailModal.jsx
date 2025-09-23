@@ -37,8 +37,8 @@ const BankDetailModal = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-xl max-w-4xl w-[90%] max-h-[80vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-opacity-50 backdrop-blur-md flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded-xl max-w-4xl w-[90%] max-h-[80vh] overflow-y-auto border border-blue-400">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-800">
             Bank Details History - {selectedUser.user_id}

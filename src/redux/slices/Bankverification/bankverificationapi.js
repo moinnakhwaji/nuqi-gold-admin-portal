@@ -46,10 +46,10 @@ export const bankverificationApi = apiSlice.injectEndpoints({
 
     // MUTATION to update the ON_HOLD status
     updateOnHoldKycStatus: builder.mutation({
-      query: ({ userId, reason }) => ({
-        url: `operations/bankkyc/onhold/status/${userId}`,
+      query: ({ BankId, templateId }) => ({
+        url: `operations/bankkyc/bankkyc/onhold/status`,
         method: 'PUT',
-        body: { reason }, 
+        body: { BankId, templateId }, 
       }),
       invalidatesTags: [{ type: 'BankKyc', id: 'LIST' }],
     }),
@@ -64,15 +64,15 @@ export const bankverificationApi = apiSlice.injectEndpoints({
       invalidatesTags: [{ type: 'BankKyc', id: 'LIST' }],
     }),
 
-    // MUTATION to send a reminder (as per your original code)
-    getOnHoldBankKyc: builder.mutation({
-      query: (bankId) => ({
-        url: "operations/bankkyc/bankkyc/onhold",
-        method: "POST",
-        body: { bankId },
-      }),
-      // This action likely does not change the list data, so it doesn't need to invalidate the tag.
-    }),
+    // src/redux/api/yourApiSlice.js
+
+getOnHoldBankKyc: builder.query({
+  query: (params) => ({
+    url: "operations/bankkyc/bankkyc/onhold",
+    method: "GET",
+    params: params,
+  }),
+}),
 
     // QUERY for exporting data (does not need tags)
     exportBankKycRecords: builder.query({
@@ -86,15 +86,26 @@ export const bankverificationApi = apiSlice.injectEndpoints({
         responseHandler: (response) => response.blob(),
       }),
     }),
+
+    // MUTATION to send Bank KYC reminder
+    sendBankKycReminder: builder.mutation({
+      query: ({ userId, BankId, templateId }) => ({
+        url: `operations/bankkyc/bankkyc/reminder/${userId}`,
+        method: "POST",
+        body: { BankId, templateId },
+      }),
+      invalidatesTags: [{ type: 'BankKyc', id: 'LIST' }],
+    }),
   }),
 });
-
 
 export const {
   useGetBankKycQuery,
   useUpdateBankDetailsMutation,
   useUpdateOnHoldKycStatusMutation,
   useUpdateKycRecordStatusMutation,
-  useGetOnHoldBankKycMutation,
+  useGetOnHoldBankKycQuery,
+  useLazyGetOnHoldBankKycQuery,
   useLazyExportBankKycRecordsQuery,
+  useSendBankKycReminderMutation,
 } = bankverificationApi;

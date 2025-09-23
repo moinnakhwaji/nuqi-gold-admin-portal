@@ -95,7 +95,7 @@ const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', user
         if (response.status === 200) {
           console.log('✨ Successfully updated KYC status');
           toast.success('KYC status updated to On Hold successfully');
-          onConfirm(selectedReason);
+          onConfirm({ reason: selectedReason, templateId });
           setSelectedReason('');
           onClose();
         }
