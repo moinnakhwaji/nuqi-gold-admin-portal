@@ -42,10 +42,10 @@ export const bankverificationApi = apiSlice.injectEndpoints({
 
   
     updateOnHoldKycStatus: builder.mutation({
-      query: ({ id, reason }) => ({
-        url: `operations/bankkyc/onhold/status/${id}`,
+      query: ({ BankId, templateId }) => ({
+        url: `operations/bankkyc/bankkyc/onhold/status`,
         method: 'PUT',
-        body: { reason }, 
+        body: { BankId, templateId }, 
       }),
       invalidatesTags: [{ type: 'BankKyc', id: 'LIST' }],
     }),
@@ -60,16 +60,15 @@ export const bankverificationApi = apiSlice.injectEndpoints({
       invalidatesTags: [{ type: 'BankKyc', id: 'LIST' }],
     }),
 
-    // MUTATION to send a reminder (as per your original code)
-    getOnHoldBankKyc: builder.mutation({
-      query: (bankId) => ({
-        url: "operations/bankkyc/bankkyc/onhold",
-        method: "GET",
-        body: { bankId },
-      }),
-     
-      invalidatesTags: [{ type: 'BankKyc', id: 'LIST' }],
-    }),
+    // src/redux/api/yourApiSlice.js
+
+getOnHoldBankKyc: builder.query({
+  query: (params) => ({
+    url: "operations/bankkyc/bankkyc/onhold",
+    method: "GET",
+    params: params,
+  }),
+}),
 
 
     exportBankKycRecords: builder.query({
@@ -83,15 +82,26 @@ export const bankverificationApi = apiSlice.injectEndpoints({
         responseHandler: (response) => response.blob(),
       }),
     }),
+
+    // MUTATION to send Bank KYC reminder
+    sendBankKycReminder: builder.mutation({
+      query: ({ userId, BankId, templateId }) => ({
+        url: `operations/bankkyc/bankkyc/reminder/${userId}`,
+        method: "POST",
+        body: { BankId, templateId },
+      }),
+      invalidatesTags: [{ type: 'BankKyc', id: 'LIST' }],
+    }),
   }),
 });
-
 
 export const {
   useGetBankKycQuery,
   useUpdateBankDetailsMutation,
   useUpdateOnHoldKycStatusMutation,
   useUpdateKycRecordStatusMutation,
-  useGetOnHoldBankKycMutation,
+  useGetOnHoldBankKycQuery,
+  useLazyGetOnHoldBankKycQuery,
   useLazyExportBankKycRecordsQuery,
+  useSendBankKycReminderMutation,
 } = bankverificationApi;
