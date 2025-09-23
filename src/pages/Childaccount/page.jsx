@@ -294,7 +294,7 @@ const Childaccount = () => {
       className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
         currentMode === "Dark"
           ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
-          : "bg-white shadow-lg"
+          : "bg-white shadow-lg border-1 border-blue-300"
       }`}
     >
       <Header category="Page" title="All Child Account Records" />
@@ -306,20 +306,20 @@ const Childaccount = () => {
             onChange={handleSearchChange}
             placeholder="Search by User ID or Full Name"
           />
-          <div className="flex flex-col">
+          <div className="flex items-center gap-2">
             <label 
               htmlFor="status-filter" 
-              className={`text-sm font-medium mb-1 ${
+              className={`text-sm font-medium whitespace-nowrap ${
                 currentMode === "Dark" ? "text-gray-300" : "text-gray-700"
               }`}
             >
-              Filter by Status:
+              Status:
             </label>
             <select
               id="status-filter"
               value={statusFilter}
               onChange={handleStatusFilterChange}
-              className={`px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[120px] ${
+              className={`px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px] ${
                 currentMode === "Dark"
                   ? "bg-gray-800 border-gray-600 text-white"
                   : "bg-white border-gray-300 text-gray-900"

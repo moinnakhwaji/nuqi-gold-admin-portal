@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FaCheckCircle, FaArrowUp, FaInbox, FaSyncAlt } from 'react-icons/fa';
 import { FcCancel } from 'react-icons/fc';
 import { ToastContainer, toast } from 'react-toastify';
@@ -7,140 +7,147 @@ import Papa from 'papaparse';
 
 import FullScreenLoader from '../../components/FullScreenLoader';
 import CoinLoader from '../../components/CoinLoader';
-import {   
+import Pagination from '../../components/Pagination'; // Ensure this path is correct
+import {
   useGetWalletQuery,
   useUploadWalletEodMutation,
-  useUpdateWalletEodMutation, 
+  useUpdateWalletEodMutation,
 } from '../../redux/slices/wallet/walletApi';
 import { useSelector } from 'react-redux';
 
 const WalletPage = () => {
-  const [filteredData, setFilteredData] = useState([]);
+  // --- STATE MANAGEMENT ---
+  const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const [tabLoading, setTabLoading] = useState(false);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [sortOrder, setSortOrder] = useState('asc');
-  const [selectedColumn, setSelectedColumn] = useState('');
-  const [filters, setFilters] = useState({ status: 'pending' });
-
-  // RTK Query hooks
-  const { data: walletData, isLoading: walletLoading, refetch: refetchWallet } = useGetWalletQuery();
-  const [uploadWalletEod] = useUploadWalletEodMutation();
-  const [updateWalletEod] = useUpdateWalletEodMutation();
-   const user = useSelector((state) => state.auth.user); // ✅ Get the full user object
-  const userRole = user?.role; // ✅ Get the role
+  const [selectedColumn, setSelectedColumn] = useState('id');
+  const [activeStatus, setActiveStatus] = useState('pending');
 
   const uploadCSVRef = useRef(null);
+  const user = useSelector((state) => state.auth.user);
+  const userRole = user?.role;
 
-  // Extract the actual data array from the response
-  const data = walletData?.data || [];
-  console.log("Wallet Data:", data);
+  // Debounce search term to avoid excessive API calls
   useEffect(() => {
-    applyFilters();
-  }, [data, filters, searchTerm]);
+    const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm.trim()), 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
+  // --- RTK QUERY HOOK ---
+  const {
+    data,
+    isLoading: isInitialLoading,
+    isFetching,
+    refetch,
+  } = useGetWalletQuery({
+    page: currentPage,
+    search: debouncedSearchTerm,
+    status: activeStatus,
+    limit: 10, // You can make this a state variable if you want a page size selector
+  });
+
+  // Extract data and metadata from the transformed response
+  const transactions = data?.transactions || [];
+  const meta = data?.meta || {};
+
+  const [uploadWalletEod, { isLoading: isUploading }] = useUploadWalletEodMutation();
+  const [updateWalletEod, { isLoading: isUpdatingStatus }] = useUpdateWalletEodMutation();
+
+  // --- CLIENT-SIDE SORTING ---
+  // Sorts the data for the *current page*
+  const sortedTransactions = useMemo(() => {
+    // Create a mutable copy before sorting
+    return [...transactions].sort((a, b) => {
+      const valA = a[selectedColumn] || '';
+      const valB = b[selectedColumn] || '';
+
+      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
+      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [transactions, selectedColumn, sortOrder]);
+
+  // --- EVENT HANDLERS ---
   const handleSearch = (e) => {
-    setSearchTerm(e.target.value.toLowerCase());
+    setSearchTerm(e.target.value);
+    setCurrentPage(1); // Reset to first page on new search
   };
 
   const handleSort = (column) => {
-    const sorted = [...filteredData].sort((a, b) => {
-      if (a[column] < b[column]) return sortOrder === 'asc' ? -1 : 1;
-      if (a[column] > b[column]) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-    setFilteredData(sorted);
-    setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    setSelectedColumn(column);
+    if (selectedColumn === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSelectedColumn(column);
+      setSortOrder('asc');
+    }
   };
 
-  const applyFilters = () => {
-    let filtered = [...data];
-    if (filters.status) {
-      filtered = filtered.filter((item) => item.status.toLowerCase() === filters.status);
-    }
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (item) =>
-          item?.portfolioName?.toLowerCase().includes(searchTerm) ||
-          item?.referenceNo?.toLowerCase().includes(searchTerm)
-      );
-    }
-    setFilteredData(filtered);
+  const handleTabChange = (tab) => {
+    setActiveStatus(tab);
+    setCurrentPage(1); // Reset to first page on tab change
   };
-
-  const exportToCSV = () => {
-    if (!filteredData.length) {
-      toast.warn('No data to export.');
-      return;
-    }
-
-    const headers = Object.keys(filteredData[0]);
-    const csvContent = [
-      headers.join(','),
-      ...filteredData.map((row) => headers.map((header) => `"${row[header] || ''}"`).join(',')),
-    ].join('\n');
-
-    const encodedUri = encodeURI(`data:text/csv;charset=utf-8,${csvContent}`);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', 'wallet_transactions.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success('Wallet data exported successfully!');
-  };
-
-  const handleTabChange = async (tab) => {
-    setTabLoading(true);
-    setFilters({ status: tab });
-    await new Promise((resolve) => {
-      setTimeout(resolve, 500);
-    });
-    setTabLoading(false);
+  
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
   };
 
   const handleRefresh = () => {
-    refetchWallet();
-    toast.success('Data refreshed successfully!');
+    refetch();
+    toast.info('Refreshing data...');
   };
 
   const addFunds = async (id, status) => {
     try {
       await updateWalletEod({ id, status }).unwrap();
-      toast.success('Status updated successfully');
-      refetchWallet(); // Refresh data after update
+      toast.success(`Transaction has been ${status}.`);
+      // RTK Query's 'invalidatesTags' will handle the refetch automatically.
     } catch (error) {
       console.error('Error updating status:', error);
-      toast.error('Something went wrong, Please try again later');
+      toast.error(error.data?.message || 'Failed to update status.');
     }
   };
-
+  
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
-
-    if (!file) {
-      toast.error('No file selected.');
-      return;
-    }
+    if (!file) return;
 
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: async (result) => {
+        if (!result.data.length) {
+          return toast.warn("CSV file is empty or invalid.");
+        }
         try {
           await uploadWalletEod({ transactions: result.data }).unwrap();
-          toast.success('File uploaded successfully!');
-          refetchWallet(); // Refresh data after upload
+          toast.success('File uploaded and is processing.');
+          // RTK Query's 'invalidatesTags' will refetch the data.
         } catch (error) {
           console.error('Error uploading file:', error);
-          toast.error('Error uploading file.');
+          toast.error(error.data?.message || 'Error uploading file.');
         }
       },
       error: (error) => {
         console.error('Error parsing CSV:', error);
-        toast.error('Error parsing CSV.');
+        toast.error('Error parsing CSV file.');
       },
     });
+    event.target.value = null; // Clear the input for re-uploading the same file
+  };
+  
+  const exportToCSV = () => {
+    if (!sortedTransactions.length) return toast.warn('No data to export.');
+
+    const csv = Papa.unparse(sortedTransactions);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `wallet-${activeStatus}-page-${currentPage}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('Current page exported successfully!');
   };
 
   const getStatusBadge = (status) => {
@@ -156,9 +163,12 @@ const WalletPage = () => {
     }
   };
   
+  if (isInitialLoading) {
+    return <FullScreenLoader />;
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 bg-gray-50 text-gray-900 min-h-screen font-sans">
-      {walletLoading && <FullScreenLoader />}
       <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
 
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -170,17 +180,17 @@ const WalletPage = () => {
             type="button"
             onClick={exportToCSV}
             className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-            disabled={walletLoading}
+            disabled={isFetching || !transactions.length}
           >
-            Export CSV
+            Export Page
           </button>
           <button
             type="button"
             onClick={handleRefresh}
             className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center gap-2"
-            disabled={walletLoading}
+            disabled={isFetching}
           >
-            <FaSyncAlt />
+            <FaSyncAlt className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </button>
           <input type="file" id="file-upload" accept=".csv" className="hidden" ref={uploadCSVRef} onChange={handleFileUpload} />
@@ -188,10 +198,9 @@ const WalletPage = () => {
             type="button"
             onClick={() => uploadCSVRef.current.click()}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center gap-2 disabled:opacity-50"
-            disabled={walletLoading}
+            disabled={isUploading}
           >
-            <FaArrowUp />
-            Upload EOD File
+            {isUploading ? 'Uploading...' : <><FaArrowUp /> Upload EOD File</>}
           </button>
         </div>
       </div>
@@ -210,29 +219,27 @@ const WalletPage = () => {
       
       <div className="border-b border-gray-200 mb-6">
           <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-              <button onClick={() => handleTabChange('pending')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${filters.status === 'pending' ? 'border-yellow-500 text-yellow-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+              <button onClick={() => handleTabChange('pending')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeStatus === 'pending' ? 'border-yellow-500 text-yellow-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
                   Pending
               </button>
-              <button onClick={() => handleTabChange('approved')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${filters.status === 'approved' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+              <button onClick={() => handleTabChange('approved')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeStatus === 'approved' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
                   Approved
               </button>
-              <button onClick={() => handleTabChange('rejected')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${filters.status === 'rejected' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+              <button onClick={() => handleTabChange('rejected')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeStatus === 'rejected' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
                   Rejected
               </button>
           </nav>
       </div>
 
       <div className="bg-white rounded-lg shadow-md overflow-x-auto">
-        {tabLoading ? (
-            <div className="flex justify-center items-center py-20">
-                <CoinLoader />
-            </div>
-        ) : filteredData.length === 0 ? (
+        {isFetching ? (
+            <div className="flex justify-center items-center py-20"><CoinLoader /></div>
+        ) : sortedTransactions.length === 0 ? (
             <div className="text-center py-20 px-4">
                 <FaInbox className="mx-auto w-12 h-12 text-gray-400" />
                 <h3 className="mt-2 text-lg font-medium text-gray-900">No Transactions Found</h3>
                 <p className="mt-1 text-sm text-gray-500">
-                    {searchTerm ? 'No results match your search query.' : `There are no ${filters.status} transactions.`}
+                    {debouncedSearchTerm ? 'No results match your search query.' : `There are no ${activeStatus} transactions.`}
                 </p>
             </div>
         ) : (
@@ -256,7 +263,7 @@ const WalletPage = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredData.map((item) => (
+              {sortedTransactions.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{item.id}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-gray-600">{item.referenceNo}</td>
@@ -273,29 +280,26 @@ const WalletPage = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <div className="flex justify-center items-center gap-2">
-{/* yaha baki hai */}
-
-{(userRole === "admin" || userRole === "superadmin") && item.status === 'pending' && (
-  <>
-    <button
-      type="button"
-      onClick={() => addFunds(item.id, 'approved')}
-      className="px-3 py-1 bg-green-600 text-white text-xs font-semibold rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-    >
-      Approve
-    </button>
-    <button
-      type="button"
-      onClick={() => addFunds(item.id, 'rejected')}
-      className="px-3 py-1 bg-red-600 text-white text-xs font-semibold rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-    >
-      Reject
-    </button>
-  </>
-)}
-
-
-
+                      {(userRole === "admin" || userRole === "superadmin") && item.status === 'pending' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => addFunds(item.id, 'approved')}
+                            disabled={isUpdatingStatus}
+                            className="px-3 py-1 bg-green-600 text-white text-xs font-semibold rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => addFunds(item.id, 'rejected')}
+                            disabled={isUpdatingStatus}
+                            className="px-3 py-1 bg-red-600 text-white text-xs font-semibold rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
                       {item.status === 'approved' && (
                         <div className="flex items-center gap-2 text-green-600">
                           <FaCheckCircle />
@@ -316,6 +320,15 @@ const WalletPage = () => {
           </table>
         )}
       </div>
+
+      {/* --- PAGINATION COMPONENT --- */}
+      {meta.totalPages > 1 && (
+        <Pagination
+          currentPage={meta.currentPage}
+          totalPages={meta.totalPages}
+          onPageChange={handlePageChange}
+        />
+      )}
     </div>
   );
 };

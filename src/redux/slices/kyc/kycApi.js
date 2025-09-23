@@ -14,6 +14,7 @@ export const kycApi = apiSlice.injectEndpoints({
         },
       }),
       providesTags: ["KycRecords"],
+      keepUnusedDataFor: 0, // Disable caching to prevent pagination issues
     }),
     exportKycRecords: builder.query({
       query: (params = {}) => ({

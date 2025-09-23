@@ -3,8 +3,12 @@ import { kycApi } from './kycApi';
 
 const initialState = {
   kycRecords: [],
-  loading: false,
+  loading: true, // Start with loading true to show loader on initial load
   error: null,
+  currentPage: 1,
+  totalRecords: 0,
+  totalPages: 0,
+  limit: 10,
 };
 
 const kycSlice = createSlice({
@@ -23,12 +27,20 @@ const kycSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-    .addMatcher(kycApi.endpoints.getKycRecords.matchPending, setLoading)
-    .addMatcher(kycApi.endpoints.getKycRecords.matchRejected, setError)
+    .addMatcher(kycApi.endpoints.getKycRecords.matchPending, (state) => {
+      state.loading = true;
+      state.error = null;
+    })
+    .addMatcher(kycApi.endpoints.getKycRecords.matchRejected, (state, action) => {
+      state.loading = false;
+      state.error = action.error;
+    })
     .addMatcher(kycApi.endpoints.getKycRecords.matchFulfilled, (state, action) => {
-      console.log("Kyc records fetched:", action.payload);
-      // Extract the data array from the response
       state.kycRecords = action.payload.data || [];
+      state.currentPage = action.payload.currentPage || 1;
+      state.totalRecords = action.payload.totalRecords || 0;
+      state.totalPages = action.payload.totalPages || 0;
+      state.limit = action.payload.limit || 10;
       state.loading = false;
       state.error = null;
     });

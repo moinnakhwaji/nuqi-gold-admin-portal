@@ -336,7 +336,7 @@ const Network = () => {
       className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
         currentMode === "Dark"
           ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
-          : "bg-white shadow-lg"
+          : "bg-white shadow-lg border-1 border-blue-300"
       }`}
     >
       <ToastContainer position="top-right" autoClose={3000} />
@@ -460,7 +460,7 @@ const Network = () => {
       {/* Table */}
       <div className="overflow-x-auto">
         <table
-          className={`min-w-full border ${
+          className={`min-w-max border ${
             currentMode === "Dark"
               ? "bg-transparent border-gray-700"
               : "bg-white border-gray-300"
@@ -475,6 +475,7 @@ const Network = () => {
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[120px]"
               >
                 Reference ID
               </SortableTableHeader>
@@ -483,14 +484,16 @@ const Network = () => {
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[120px]"
               >
-                Transaction ID
+                Trans. ID
               </SortableTableHeader>
               <SortableTableHeader
                 field="userId"
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[100px]"
               >
                 User ID
               </SortableTableHeader>
@@ -499,22 +502,25 @@ const Network = () => {
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[80px]"
               >
-                Currency Code
+                Currency 
               </SortableTableHeader>
               <SortableTableHeader
                 field="issuingOrg"
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[120px]"
               >
-                Issuing Organization
+                Issuing Org
               </SortableTableHeader>
               <SortableTableHeader
                 field="issuingCountry"
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[130px]"
               >
                 Issuing Country
               </SortableTableHeader>
@@ -523,6 +529,7 @@ const Network = () => {
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[100px]"
               >
                 Card Type
               </SortableTableHeader>
@@ -531,6 +538,7 @@ const Network = () => {
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[120px]"
               >
                 Card Holder
               </SortableTableHeader>
@@ -539,6 +547,7 @@ const Network = () => {
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[100px]"
               >
                 Card Name
               </SortableTableHeader>
@@ -547,6 +556,7 @@ const Network = () => {
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[100px]"
               >
                 Amount
               </SortableTableHeader>
@@ -555,6 +565,7 @@ const Network = () => {
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[120px]"
               >
                 Card Category
               </SortableTableHeader>
@@ -563,6 +574,7 @@ const Network = () => {
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[100px]"
               >
                 Status
               </SortableTableHeader>
@@ -571,6 +583,7 @@ const Network = () => {
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[140px]"
               >
                 Created At
               </SortableTableHeader>
@@ -579,6 +592,7 @@ const Network = () => {
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                className="min-w-[140px]"
               >
                 Updated At
               </SortableTableHeader>

@@ -181,8 +181,6 @@ const TransactionsPage = () => {
     limit: 10
   });
 
-  // Redux query for CSV export
-  const [exportTransactions, { isLoading: isExporting }] = useLazyExportTransactionsQuery();
 
   const statusOptions = [
     { value: "all", label: "All" },
@@ -316,36 +314,9 @@ const TransactionsPage = () => {
   };
 
   const handleSearchChange = (e) => {
-    setSearchTerm(e.target.value);
+    setSearchTerm(e.target.value.trim());
   };
 
-const handleExportCSV = async () => {
-  try {
-    const result = await exportTransactions({
-      search: debouncedSearchTerm,
-      export: 'csv'
-    });
-
-    if (result.data) {
-      // Create blob and download
-      const blob = new Blob([result.data], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      
-      const date = new Date().toISOString().slice(0, 10);
-      link.download = `transactions-records-${date}.csv`;
-      
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    }
-  } catch (error) {
-    console.error('Export failed:', error);
-    // You might want to show a toast/notification here
-  }
-};
 
   const formatDate = (dateString) => {
     if (!dateString) return "";
@@ -439,69 +410,59 @@ const handleExportCSV = async () => {
       className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
         currentMode === "Dark"
           ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
-          : "bg-white shadow-lg"
+          : "bg-white shadow-lg border-1 border-blue-300"
       }`}
     >
       <Header category="Page" title="Transactions Dashboard" />
 
-      {/* Search Box and Export Button */}
-      <div className="mb-4 flex items-center justify-between">
-        <SearchBox
-          value={searchTerm}
-          onChange={handleSearchChange}
-          placeholder="Search by Transaction ID, User ID, etc"
-        />
-      <button
-  onClick={handleExportCSV}
-  disabled={isExporting}
-  className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 ${
-    isExporting
-      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-      : currentMode === 'Dark'
-      ? 'bg-cyan-600 text-white hover:bg-cyan-700'
-      : 'bg-blue-600 text-white hover:bg-blue-700'
-  }`}
->
-  {isExporting ? (
-    <>
-      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-      Exporting...
-    </>
-  ) : (
-    <>
-      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-      Export CSV
-    </>
-  )}
-</button>
-      </div>
-
-      {/* Status Filter Tabs */}
-      <div className="mb-6">
-        <div className={`border-b ${currentMode === "Dark" ? "border-gray-600" : "border-gray-200"}`}>
-          <div className="flex gap-6 overflow-x-auto pb-0">
-            {statusOptions.map((status) => (
-              <button
-                key={status.value}
-                onClick={() => setStatusFilter(status.value)}
-                className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${
-                  statusFilter === status.value
-                    ? currentMode === "Dark"
-                      ? 'text-cyan-400 border-cyan-400'
-                      : 'text-blue-600 border-blue-600'
-                    : currentMode === "Dark"
-                    ? 'text-gray-400 border-transparent hover:text-white hover:border-gray-600'
-                    : 'text-gray-500 border-transparent hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                {status.label} ({getStatusCount(status.value)})
-              </button>
-            ))}
+      {/* Search Box, Status Filter and Export Button */}
+      <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1 w-full sm:w-auto">
+          <SearchBox
+            value={searchTerm}
+            onChange={handleSearchChange}
+            placeholder="Search by Transaction ID, User ID, etc"
+          />
+          <div className="flex items-center gap-2">
+            <label 
+              htmlFor="status-filter" 
+              className={`text-sm font-medium whitespace-nowrap ${
+                currentMode === "Dark" ? "text-gray-300" : "text-gray-700"
+              }`}
+            >
+              Status:
+            </label>
+            <select
+              id="status-filter"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className={`px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[150px] ${
+                currentMode === "Dark"
+                  ? "bg-gray-800 border-gray-600 text-white"
+                  : "bg-white border-gray-300 text-gray-900"
+              }`}
+            >
+              {statusOptions.map((status) => (
+                <option key={status.value} value={status.value}>
+                  {status.label} ({getStatusCount(status.value)})
+                </option>
+              ))}
+            </select>
           </div>
         </div>
+        <ExportCSVButton
+          exportHook={useLazyExportTransactionsQuery}
+          currentFilters={{
+            search: searchTerm,
+            status: statusFilter !== "all" ? statusFilter : undefined,
+            startDate: startDate ? startDate.toISOString().split('T')[0] : undefined,
+            endDate: endDate ? endDate.toISOString().split('T')[0] : undefined,
+          }}
+          filename="transactions.csv"
+          buttonText="Export CSV"
+        />
       </div>
+
 
       {/* Date Range Filters */}
       <div className="mb-6 flex gap-4">
@@ -540,7 +501,7 @@ const handleExportCSV = async () => {
                 sortDirection={sortDirection}
                 onSort={handleSort}
               >
-                Transaction ID
+                Trans. ID
               </SortableTableHeader>
               <SortableTableHeader
                 field="user_id"
@@ -572,7 +533,7 @@ const handleExportCSV = async () => {
                 sortDirection={sortDirection}
                 onSort={handleSort}
               >
-                Transaction Type
+                Trans. Type
               </SortableTableHeader>
               <SortableTableHeader
                 field="status"
@@ -599,7 +560,27 @@ const handleExportCSV = async () => {
                 : "bg-white divide-gray-200"
             }`}
           >
-            {clientSideFilteredData.map((transaction, index) => (
+            {clientSideFilteredData.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-6 py-12">
+                  <EmptyState
+                    title="No Transactions Found"
+                    message="No transactions match your current filters. Try adjusting your search criteria."
+                    iconType="document"
+                    showRefreshButton={true}
+                    buttonText="Clear Filters"
+                    onRefresh={() => {
+                      setStatusFilter("all");
+                      setStartDate(null);
+                      setEndDate(null);
+                      setSearchTerm("");
+                    }}
+                    className="py-8"
+                  />
+                </td>
+              </tr>
+            ) : (
+              clientSideFilteredData.map((transaction, index) => (
               <tr key={transaction.transaction_id || index} className={getRowBackgroundClass(index)}>
                 <td
                   className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
@@ -657,7 +638,8 @@ const handleExportCSV = async () => {
                   {formatDate(transaction.createdAt)}
                 </td>
               </tr>
-            ))}
+              ))
+            )}
           </tbody>
         </table>
       </div>
@@ -672,23 +654,6 @@ const handleExportCSV = async () => {
         recordsCount={clientSideFilteredData.length}
       />
 
-      {/* No Records Message for filtered results */}
-      {clientSideFilteredData.length === 0 && transactionsResponse?.data?.length > 0 && (
-        <EmptyState
-          title="No Transactions Found"
-          message="No transactions match your current filters. Try adjusting your search criteria."
-          iconType="document"
-          showRefreshButton
-          buttonText="Clear Filters"
-          onButtonClick={() => {
-            setStatusFilter("all");
-            setStartDate(null);
-            setEndDate(null);
-            setSearchTerm("");
-          }}
-          className="py-16"
-        />
-      )}
     </div>
   );
 };

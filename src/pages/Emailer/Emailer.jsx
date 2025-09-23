@@ -1,15 +1,12 @@
-import React, { useState } from "react";
-import { toast, ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import React, { useState, useEffect } from "react";
+import EmailStatusModal from "../../components/EmailStatusModal";
 import { useSendEmailMutation } from "../../redux/slices/emailer/emailApi";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { resetEmailState } from "../../redux/slices/emailer/emailSlice";
 
 const Emailer = () => {
-  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("edit");
-  const [sendEmail] = useSendEmailMutation();
-   const user = useSelector((state) => state.auth.user); // ✅ Get the full user object
-  const userRole = user?.role; 
+  const [showStatusModal, setShowStatusModal] = useState(false);
   const [emailData, setEmailData] = useState({
     email: "",
     subject: "",
@@ -17,6 +14,37 @@ const Emailer = () => {
     cc: "",
     bcc: "",
   });
+
+  const [sendEmail] = useSendEmailMutation();
+
+  // Get user info from auth slice
+  const user = useSelector((state) => state.auth.user);
+  const userRole = user?.role;
+
+  // Get email states from email slice
+  const { loading, error, success, emailResponse } = useSelector((state) => state.email);
+  const dispatch = useDispatch();
+
+  // Handle status changes and modal close
+  useEffect(() => {
+    if (success || error) {
+      setShowStatusModal(true);
+    }
+  }, [success, error]);
+
+  const handleModalClose = () => {
+    setShowStatusModal(false);
+    if (success) {
+      setEmailData({
+        email: "",
+        subject: "",
+        message: "<h1>Hello!</h1>\n<p>Write your email content here...</p>",
+        cc: "",
+        bcc: "",
+      });
+    }
+    dispatch(resetEmailState());
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -26,81 +54,19 @@ const Emailer = () => {
     }));
   };
 
-  const emailer = async () => {
-    try {
-      setLoading(true);
-      console.log("Sending email data:", emailData);
-      
-      // Use RTK Query mutation
-      const result = await sendEmail(emailData).unwrap();
-      
-      console.log("Email Response:", result);
-
-      toast.success("Email Sent Successfully!", {
-        position: "top-right",
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
-      
-      return result;
-    } catch (error) {
-      console.error("Email Error:", {
-        message: error.message || error.data?.message,
-        error: error,
-      });
-
-      toast.error(
-        error.data?.message || error.message || "Failed to send email",
-        {
-          position: "top-right",
-          autoClose: 3000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        }
-      );
-
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSubmit = async (e) => {
-    if (e && e.preventDefault) {
-      e.preventDefault();
-    }
+    e?.preventDefault?.();
 
+    // Validate required fields
     if (!emailData.email || !emailData.subject || !emailData.message) {
-      toast.error("Please fill in all required fields", {
-        position: "top-right",
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
+      setShowStatusModal(true);
       return;
     }
 
     try {
-      const result = await emailer(emailData);
-      console.log("Email sent successfully:", result);
-
-      // Clear form on success
-      setEmailData({
-        email: "",
-        subject: "",
-        message: "<h1>Hello!</h1>\n<p>Write your email content here...</p>",
-        cc: "",
-        bcc: "",
-      });
+      await sendEmail(emailData).unwrap();
     } catch (error) {
-      console.log("Failed to send email");
+      console.error("Email Error:", error);
     }
   };
 
@@ -125,7 +91,7 @@ const Emailer = () => {
                 Compose HTML Email
               </h2>
             </div>
-            
+
             {/* Card Content */}
             <div className="p-6">
               <div
@@ -193,7 +159,7 @@ const Emailer = () => {
                   <label className="block text-sm mb-2 text-gray-700 font-medium">
                     Message:
                   </label>
-                  
+
                   {/* Custom Tabs */}
                   <div className="w-full font-normal">
                     {/* Tab List */}
@@ -201,27 +167,25 @@ const Emailer = () => {
                       <button
                         type="button"
                         onClick={() => setActiveTab("edit")}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                          activeTab === "edit"
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === "edit"
                             ? "bg-white text-blue-600 shadow-sm"
                             : "text-gray-600 hover:text-gray-800"
-                        }`}
+                          }`}
                       >
                         Edit HTML
                       </button>
                       <button
                         type="button"
                         onClick={() => setActiveTab("preview")}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                          activeTab === "preview"
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === "preview"
                             ? "bg-white text-blue-600 shadow-sm"
                             : "text-gray-600 hover:text-gray-800"
-                        }`}
+                          }`}
                       >
                         Preview
                       </button>
                     </div>
-                    
+
                     {/* Tab Content */}
                     {activeTab === "edit" && (
                       <textarea
@@ -233,7 +197,7 @@ const Emailer = () => {
                         required
                       />
                     )}
-                    
+
                     {activeTab === "preview" && (
                       <div className="bg-gray-50 rounded-lg border border-gray-300">
                         {renderPreview()}
@@ -265,20 +229,26 @@ const Emailer = () => {
                       Discard
                     </button>
 
-                   {(userRole === "admin" || userRole === "superadmin") && (
-  <button
-    type="button"
-    onClick={handleSubmit}
-    disabled={loading}
-    className={`px-6 py-2 rounded-lg text-white font-medium transition-all ${
-      loading
-        ? "bg-gray-400 cursor-not-allowed"
-        : "bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg"
-    }`}
-  >
-    {loading ? "Sending..." : "Send Email"}
-  </button>
-)}
+                    {(userRole === "admin" || userRole === "superadmin") && (
+                      <button
+                        type="button"
+                        onClick={handleSubmit}
+                        disabled={loading}
+                        className={`px-6 py-2 rounded-lg text-white font-medium transition-all ${loading
+                            ? "bg-gray-400 cursor-not-allowed"
+                            : "bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg"
+                          }`}
+                      >
+                        {loading ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Sending...</span>
+                          </div>
+                        ) : (
+                          "Send Email"
+                        )}
+                      </button>
+                    )}
 
                   </div>
                 </div>
@@ -287,20 +257,15 @@ const Emailer = () => {
           </div>
         </div>
       </div>
-      
-      {/* Toast Container */}
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-        className="mt-16"
+
+      {/* Status Modal */}
+      <EmailStatusModal
+        isOpen={showStatusModal}
+        onClose={handleModalClose}
+        status={success ? 'success' : 'error'}
+        message={success
+          ? "Your email has been sent successfully!"
+          : (error || "Failed to send email. Please try again.")}
       />
     </>
   );

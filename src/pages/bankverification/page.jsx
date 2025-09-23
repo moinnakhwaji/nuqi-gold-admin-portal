@@ -1,114 +1,145 @@
 import React, { useState, useEffect } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { FaEye, FaBell } from 'react-icons/fa';
+import { FaEye } from 'react-icons/fa';
+import { useStateContext } from '../../contexts/ContextProvider';
 import {
   useGetBankKycQuery,
   useUpdateBankDetailsMutation,
   useUpdateKycRecordStatusMutation,
-  useGetOnHoldBankKycMutation,
+  useLazyExportBankKycRecordsQuery,
+  useUpdateOnHoldKycStatusMutation, // <-- Import the new mutation hook
+  useLazyGetOnHoldBankKycQuery, // <-- Import the lazy on-hold records query
+  useSendBankKycReminderMutation, // <-- Import the new reminder mutation hook
 } from '../../redux/slices/Bankverification/bankverificationapi';
-import FullScreenLoader from '../../components/FullScreenLoader';
+import EmptyState from '../../components/EmptyState';
+import Header from '../../components/Header';
+import SearchBox from '../../components/SearchBox';
+import Pagination from '../../components/Pagination';
 import ReasonModal from '../../components/ReasonModal';
-import { parse } from '../../lib/utils';
-
-// Column definitions for the main data table
-const columns = [
-  { id: 'id', label: 'BANK KYC ID', minWidth: '170px' },
-  { id: 'user_id', label: 'User ID', minWidth: '100px' },
-  { id: 'account_number', label: 'Account Number', minWidth: '150px' },
-  { id: 'holder_name', label: 'Holder Name', minWidth: '150px' },
-  { id: 'createdAt', label: 'Created At', minWidth: '120px' },
-  { id: 'status', label: 'Status', minWidth: '120px' },
-  { id: 'actions', label: 'Actions', minWidth: '100px' },
-];
+import BankDetailModal from '../../components/bankverification/BankDetailModal';
+import ExportCSVButton from '../../components/ExportCSVButton';
+import SortableTableHeader from '../../components/SortableTableHeader';
 
 // Helper to determine tailwind classes based on KYC status
 const getStatusClasses = (status) => {
-  switch (status) {
+  switch (status?.toUpperCase()) {
     case 'APPROVED':
       return 'bg-green-100 text-green-800 border border-green-300';
     case 'REJECTED':
       return 'bg-red-100 text-red-800 border border-red-300';
     case 'ON_HOLD':
       return 'bg-orange-100 text-orange-800 border border-orange-300';
-    default:
+    case 'UNDER_REVIEW':
       return 'bg-amber-100 text-amber-800 border border-amber-300';
+    default:
+      return 'bg-gray-100 text-gray-800 border border-gray-300';
   }
 };
 
 const BankVerification = () => {
-  // RTK Query hooks for data fetching and mutations
-  const { data: bankKycData, error, isLoading, isFetching, refetch } = useGetBankKycQuery();
-  const [updateBankDetails, { isLoading: isUpdatingBankDetails }] = useUpdateBankDetailsMutation();
-  const [updateKycRecordStatus] = useUpdateKycRecordStatusMutation();
-  const [getOnHoldBankKyc, { isLoading: isSendingReminder }] = useGetOnHoldBankKycMutation();
-
+  const { currentMode } = useStateContext();
+  
   // Component state management
-  const [filteredData, setFilteredData] = useState([]);
-  const [selectedTab, setSelectedTab] = useState('pending');
+  const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [selectedTab, setSelectedTab] = useState('');
+  const [sortField, setSortField] = useState('');
+  const [sortDirection, setSortDirection] = useState('desc');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [sortOrder, setSortOrder] = useState('asc');
-  const [selectedColumn, setSelectedColumn] = useState('');
   const [isEditable, setIsEditable] = useState(false);
   const [editedDetails, setEditedDetails] = useState({});
   const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
   const [selectedKycId, setSelectedKycId] = useState(null);
 
-  // Processes raw data to find the most relevant bank detail for display in the table
-  const processDataWithRelevantDetails = (dataToProcess = []) => {
-    return dataToProcess.map((user) => {
-      const sortedBankDetails = [...(user.bankDetails || [])].sort((a, b) => {
-        if (a.account_status === 'PENDING' && b.account_status !== 'PENDING') return 1;
-        if (b.account_status === 'PENDING' && a.account_status !== 'PENDING') return -1;
-        return new Date(b.createdAt) - new Date(a.createdAt);
-      });
-      return {
-        ...user,
-        relevantBankDetail: sortedBankDetails[0],
-        allBankDetails: sortedBankDetails,
-      };
-    });
+  // Map frontend tab names to backend type values
+  const getTypeFromTab = (tab) => {
+    switch (tab) {
+      case 'pending':
+        return 'PENDING';
+      case 'approved':
+        return 'APPROVED';
+      case 'rejected':
+        return 'REJECTED';
+      case 'on_hold':
+        return 'ON_HOLD';
+      default:
+        return null;
+    }
   };
 
-  // Effect to filter and sort data when RTK Query data, tab, or search term changes
+  // Debounced search effect
   useEffect(() => {
-    if (bankKycData) {
-      const allData = bankKycData.data || [];
-      const processedData = processDataWithRelevantDetails(allData);
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+    }, 500);
 
-      const filterByTab = (data) => {
-        return data.filter((user) => {
-          const status = user.relevantBankDetail?.account_status?.toUpperCase();
-          switch (selectedTab) {
-            case 'approved': return status === 'APPROVED';
-            case 'rejected': return status === 'REJECTED';
-            case 'on_hold': return status === 'ON_HOLD';
-            default: return status === 'UNDER_REVIEW';
-          }
-        });
-      };
-      const tabFilteredData = filterByTab(processedData);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-      if (searchTerm) {
-        const searchFiltered = tabFilteredData.filter((user) => {
-          const detail = user.relevantBankDetail;
-          return (
-            detail?.holder_name?.toLowerCase().includes(searchTerm) ||
-            detail?.user_id?.toLowerCase().includes(searchTerm) ||
-            detail?.account_number?.toLowerCase().includes(searchTerm)
-          );
-        });
-        setFilteredData(searchFiltered);
-      } else {
-        setFilteredData(tabFilteredData);
+  // RTK Query hooks for data fetching and mutations
+  const { data: bankKycData, error, isLoading, isFetching, refetch } = useGetBankKycQuery({
+    page: currentPage,
+    search: debouncedSearchTerm,
+    type: getTypeFromTab(selectedTab),
+  });
+  const [updateBankDetails, { isLoading: isUpdatingBankDetails }] = useUpdateBankDetailsMutation();
+  const [updateKycRecordStatus] = useUpdateKycRecordStatusMutation();
+  const [updateOnHoldKycStatus] = useUpdateOnHoldKycStatusMutation(); // <-- Instantiate new hook
+  const [sendBankKycReminder, { isLoading: isSendingBankReminder }] = useSendBankKycReminderMutation();
+  const [getOnHoldBankKyc, { isLoading: isOnHoldLoading }] = useLazyGetOnHoldBankKycQuery();
+
+  // Data processing
+  const processDataWithRelevantDetails = (dataToProcess = []) => {
+    return dataToProcess.map((bankDetail) => ({
+      user_id: bankDetail.userId,
+      fullName: bankDetail.fullName,
+      relevantBankDetail: bankDetail,
+      allBankDetails: [bankDetail, ...(bankDetail.previousBankRecords || [])],
+      kycRecords: bankDetail.kycRecords || [],
+    }));
+  };
+
+  // Process server data and calculate pagination
+  const bankKycRecords = bankKycData?.data || [];
+  const totalRecords = bankKycData?.totalRecords || 0;
+  const backendLimit = bankKycData?.limit || 10;
+  const totalPages = bankKycData?.totalPages || Math.ceil(totalRecords / backendLimit);
+
+  const processedData = processDataWithRelevantDetails(bankKycRecords);
+  
+  // Sorting function
+  const sortRecords = (records, field, direction) =>
+    [...records].sort((a, b) => {
+      let aValue = a.relevantBankDetail?.[field] || a[field];
+      let bValue = b.relevantBankDetail?.[field] || b[field];
+
+      if (aValue === null || aValue === undefined) aValue = "";
+      if (bValue === null || bValue === undefined) bValue = "";
+
+      if (field === "createdAt" || field === "updatedAt") {
+        aValue = aValue ? new Date(aValue).getTime() : 0;
+        bValue = bValue ? new Date(bValue).getTime() : 0;
       }
-    }
-  }, [bankKycData, selectedTab, searchTerm]);
 
-  // Effect to show toast notifications on API errors
+      if (typeof aValue === "string" && aValue !== "") aValue = aValue.toLowerCase();
+      if (typeof bValue === "string" && bValue !== "") bValue = bValue.toLowerCase();
+
+      if (direction === "asc") {
+        if (aValue > bValue) return 1;
+        if (aValue < bValue) return -1;
+        return 0;
+      }
+      if (aValue < bValue) return 1;
+      if (aValue > bValue) return -1;
+      return 0;
+    });
+
+  const sortedData = sortRecords(processedData, sortField, sortDirection);
+  const filteredData = sortedData;
+
   useEffect(() => {
     if (error) {
       toast.error('Failed to fetch KYC data.');
@@ -116,23 +147,39 @@ const BankVerification = () => {
     }
   }, [error]);
 
-  const handleTabChange = (tab) => setSelectedTab(tab);
-  const handleSearch = (event) => setSearchTerm(event.target.value.toLowerCase());
+  const handleTabChange = (tab) => {
+    setSelectedTab(tab);
+    setCurrentPage(1); 
+  };
+
+  const handleSearch = (event) => {
+    setSearchTerm(event.target.value.trim());
+    setCurrentPage(1); 
+  };
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+    setCurrentPage(1);
+  };
 
   const openModal = (user) => {
-    if (!user || !Array.isArray(user.bankDetails) || user.bankDetails.length === 0) {
+    if (!user || !user.relevantBankDetail) {
       toast.error('This user has no bank details to view.');
       return;
     }
+    
     setSelectedUser(user);
     setIsModalOpen(true);
   };
-  console.log("selected user", selectedUser);
-  console.log("all bank details", {
-    userId: selectedUser?.user_id,
-    bankId: selectedUser?.allBankDetails[0]?.id,
-   
-  });
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -158,10 +205,8 @@ const BankVerification = () => {
     setEditedDetails((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Saves updated bank details using RTK Query mutation
   const handleSaveChanges = async (bankDetail) => {
     try {
-      // FIX 2: Changed keys to snake_case
       const payload = {
         holder_name: editedDetails.holder_name,
         bank_name: editedDetails.bank_name,
@@ -172,270 +217,533 @@ const BankVerification = () => {
       };
       
       await updateBankDetails({ user_id: bankDetail.user_id, body: payload }).unwrap();
-      
+      console.log('Bank details updated successfully', payload, bankDetail);
       toast.success('Bank details updated successfully');
-      closeModal(); // RTK Query's cache invalidation will trigger a refetch
+      closeModal();
     } catch (err) {
       console.error('Error updating bank details:', err);
       toast.error(err.data?.message || 'Failed to update bank details');
     }
   };
 
-  // Updates KYC status using RTK Query mutation
-  const handleUpdateKycStatus = async (status, id, reason = null) => {
+  // *** MODIFIED FUNCTION ***
+  // Updates KYC status using the appropriate RTK Query mutation
+  const handleUpdateKycStatus = async (status, id,BankId, templateId, reason = null) => {
     try {
-      // FIX 1: Convert status to lowercase
       const lowercaseStatus = status.toLowerCase();
 
-      await updateKycRecordStatus({ id, status: lowercaseStatus, reason }).unwrap();
+      if (lowercaseStatus === 'on_hold') {
+        // Use the dedicated hook for 'ON_HOLD' status
+        await updateOnHoldKycStatus({ BankId, templateId }).unwrap();
+      } else {
+        // Use the general hook for 'APPROVED' and 'REJECTED'
+        await updateKycRecordStatus({ id, status: lowercaseStatus, reason }).unwrap();
+      }
       
       toast.success(`KYC record has been updated to ${status}.`);
       closeModal();
       setIsReasonModalOpen(false);
     } catch (err) {
-      console.error(`Error updating KYC status:`, err);
+      console.error(`Error updating KYC status to ${status}:`, err);
       toast.error(err.data?.message || `Failed to update KYC status.`);
     }
   };
   
-  // Sends a reminder for 'On Hold' KYC using RTK Query mutation
   const handleSendReminder = async (bankDetail) => {
     try {
-      await getOnHoldBankKyc(bankDetail.id).unwrap();
-      toast.success('Reminder sent successfully!');
+      console.log("🔍 Fetching on-hold records for Bank ID:", bankDetail.id);
+      const onHoldResponse = await getOnHoldBankKyc({ bankId: bankDetail.id }).unwrap();
+
+      console.log("📊 All On Hold Records:", onHoldResponse);
+      const records = Array.isArray(onHoldResponse) ? onHoldResponse : (onHoldResponse?.data || []);
+      const onHoldData = records.find(
+        (record) => record.BankId === bankDetail.id
+      ) || records.find(
+        (record) => record.user_id === bankDetail.user_id
+      ) || records.find(
+        (record) => record.bankId === bankDetail.id
+      ) || records.find(
+        (record) => record.bank_id === bankDetail.id
+      ) || records.find(
+        (record) => record.id === bankDetail.id
+      );
+
+      console.log("🎯 Found Matching Record:", onHoldData);
+
+      if (!onHoldData) {
+        console.log("❌ No matching on-hold record found");
+        console.log("💡 Available records:", records);
+        throw new Error(`No on-hold record found for bank ID ${bankDetail.id} (user: ${bankDetail.user_id}). Available BankIds: ${records.map(r => r.BankId).join(', ')}`);
+      }
+
+      const { BankId, templateId, user_id } = onHoldData;
+      console.log("📋 Using Record Details:", {
+        BankId,
+        templateId,
+        user_id,
+        originalBankId: bankDetail.id,
+      });
+
+      if (!templateId || !BankId || !user_id) {
+        throw new Error("Missing required data from on-hold record");
+      }
+
+      console.log("📧 Sending reminder with dynamic templateId:", {
+        userId: user_id,
+        BankId,
+        templateId,
+        originalBankId: bankDetail.id,
+      });
+
+      console.log("📬 Template ID Details:", {
+        storedTemplateId: templateId,
+        reasonId: onHoldData.id || 'Unknown',
+        reasonText: `Reason ID ${onHoldData.id} (Template ${templateId})`,
+        bankDetail: {
+          id: bankDetail.id,
+          user_id: bankDetail.user_id,
+          account_status: bankDetail.account_status
+        },
+        onHoldRecord: onHoldData
+      });
+
+      await sendBankKycReminder({
+        userId: user_id,
+        BankId,
+        templateId,
+      }).unwrap();
+      
+      toast.success('Bank KYC reminder sent successfully!');
     } catch (err) {
-      toast.error(err.data?.message || 'Failed to send reminder');
       console.error('Error sending reminder:', err);
-    }
-  };
-
-  const handleSort = (columnId) => {
-    const isAsc = selectedColumn === columnId && sortOrder === 'asc';
-    const newSortOrder = isAsc ? 'desc' : 'asc';
-    setSortOrder(newSortOrder);
-    setSelectedColumn(columnId);
-    const sorted = [...filteredData].sort((a, b) => {
-      let valA = a.relevantBankDetail?.[columnId];
-      let valB = b.relevantBankDetail?.[columnId];
-      if (valA < valB) return newSortOrder === 'asc' ? -1 : 1;
-      if (valA > valB) return newSortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-    setFilteredData(sorted);
-  };
-  
-  const handleReasonConfirm = (reason) => {
-    if (selectedKycId) {
-      // Pass the original uppercase status for consistency in UI logic
-      handleUpdateKycStatus('ON_HOLD', selectedKycId, reason);
+      if (err.message === "No on-hold record found for this bank detail") {
+        toast.error("No on-hold record found for this bank detail");
+      } else if (err.message === "Missing required data from on-hold record") {
+        toast.error("Missing required data from on-hold record");
+      } else {
+        toast.error(err.data?.message || 'Failed to send reminder');
+      }
     }
   };
   
-  const convertTimestampToDays = (timestamp) => {
-    if (!timestamp) return 'N/A';
-    const diffDays = Math.floor((new Date() - new Date(timestamp)) / (1000 * 60 * 60 * 24));
-    return `${diffDays} days ago`;
+  const handleReasonConfirm = async (reasonData) => {
+    if (selectedKycId && selectedUser) {
+      try {
+        const { reason, templateId } = reasonData;
+        const BankId = selectedUser?.allBankDetails[0]?.id;
+        
+        await updateOnHoldKycStatus({ 
+          BankId, 
+          templateId 
+        }).unwrap();
+        
+        toast.success('KYC record has been put on hold successfully');
+        closeModal();
+        setIsReasonModalOpen(false);
+      } catch (err) {
+        console.error('Error putting KYC on hold:', err);
+        toast.error(err.data?.message || 'Failed to put KYC on hold');
+      }
+    }
   };
 
-  const exportToCSV = () => {
-    const rows = filteredData.map(user => ({
-      user_id: user.relevantBankDetail?.user_id,
-      holder_name: user.relevantBankDetail?.holder_name,
-      account_number: user.relevantBankDetail?.account_number,
-      account_status: user.relevantBankDetail?.account_status,
-      createdAt: user.relevantBankDetail?.createdAt,
-    }));
+  const formatDate = (dateString) => {
+    if (!dateString) return "";
     try {
-      const csv = parse(rows, { fields: ['user_id', 'holder_name', 'account_number', 'account_status', 'createdAt'] });
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = 'kyc_data.csv';
-      link.click();
-      toast.success('CSV exported successfully!');
-    } catch (err) {
-      toast.error('Failed to export CSV!');
-      console.error('CSV Export Error:', err);
+      return new Date(dateString).toLocaleString("en-GB");
+    } catch (e) {
+      return dateString;
     }
   };
 
   const transformDocumentUrl = (url) => url?.replace(':7777/', ':7000/');
 
-  return (
-    <div className="p-6 bg-gray-50 min-h-screen font-['Poppins']">
-      {(isLoading || isFetching) && <FullScreenLoader />}
-      <ToastContainer />
-      
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Bank KYC Dashboard</h1>
-        <div className="flex gap-4">
-          <button onClick={refetch} className="px-6 py-2 flex items-center gap-2 bg-white hover:bg-gray-100 rounded-lg border">
-            Refresh
-          </button>
-          <button onClick={exportToCSV} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">
-            Export CSV
-          </button>
+  if (isLoading || isFetching) {
+    return (
+      <div
+        className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+          currentMode === "Dark"
+            ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
+            : "bg-white border-1 border-blue-400"
+        }`}
+      >
+        <ToastContainer />
+        <Header category="Page" title="Bank KYC Verification" />
+        <div className="flex items-center justify-center h-64">
+          <div
+            className={`animate-spin rounded-full h-32 w-32 border-b-2 ${
+              currentMode === "Dark" ? "border-cyan-400" : "border-blue-600"
+            }`}
+          />
         </div>
       </div>
+    );
+  }
 
-      <div className="relative w-[500px] mb-6">
-        <input
-          type="text"
-          placeholder="Search by Name, User Id, or Account Number"
-          className="w-full px-4 py-3 bg-white rounded-lg border focus:ring-2 focus:ring-blue-500"
+  if (error) {
+    return (
+      <div
+        className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+          currentMode === "Dark"
+            ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
+            : "bg-white border-1 border-yellow-400"
+        }`}
+      >
+        <ToastContainer />
+        <Header category="Page" title="Bank KYC Verification" />
+        
+        <div className="mb-4">
+          <div className="flex justify-start gap-4 p-2">
+            {['pending', 'approved', 'rejected', 'on_hold'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => handleTabChange(tab)}
+                className={`capitalize w-[200px] py-3 text-sm font-medium rounded-lg transition-all ${
+                  selectedTab === tab ? 'bg-blue-500 text-white shadow-md' : 'border border-blue-500 text-blue-500 hover:bg-blue-50'
+                }`}
+              >
+                {tab.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        <EmptyState
+          variant="error"
+          title="Unable to Load Bank KYC Data"
+          message={`We encountered an issue while loading the ${selectedTab ? selectedTab.replace('_', ' ') : 'bank KYC'} data. Please try refreshing the page or contact support if the problem persists.`}
+          buttonText="Refresh Page"
+          onButtonClick={refetch}
+        />
+      </div>
+    );
+  }
+
+  if (bankKycRecords.length === 0) {
+    return (
+      <div
+        className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+          currentMode === "Dark"
+            ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
+            : "bg-white shadow-lg border-1 border-blue-400"
+        }`}
+      >
+        <ToastContainer />
+        <Header category="Page" title="Bank KYC Verification" />
+        
+        <div className="mb-4">
+          <div className="flex justify-start gap-4 p-2">
+            {['pending', 'approved', 'rejected', 'on_hold'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => handleTabChange(tab)}
+                className={`capitalize w-[200px] py-3 text-sm font-medium rounded-lg transition-all ${
+                  selectedTab === tab ? 'bg-blue-500 text-white shadow-md' : 'border border-blue-500 text-blue-500 hover:bg-blue-50'
+                }`}
+              >
+                {tab.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        <EmptyState
+          title="No Bank KYC Records Found"
+          message={`No ${selectedTab ? selectedTab.replace('_', ' ') : 'bank KYC'} records found. ${selectedTab === 'pending' ? 'New submissions will appear here.' : selectedTab === 'approved' ? 'Approved records will appear here.' : selectedTab === 'rejected' ? 'Rejected records will appear here.' : selectedTab === 'on_hold' ? 'On-hold records will appear here.' : 'Records will appear here once they are submitted.'}`}
+          iconType="document"
+        />
+      </div>
+    );
+  }
+
+  if (filteredData.length === 0) {
+    return (
+      <div
+        className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+          currentMode === "Dark"
+            ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
+            : "bg-white shadow-lg border-1 border-yellow-400"
+        }`}
+      >
+        <ToastContainer />
+        <Header category="Page" title="Bank KYC Verification" />
+        
+        <div className="mb-4">
+          <div className="flex justify-start gap-4 p-2">
+            {['pending', 'approved', 'rejected', 'on_hold'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => handleTabChange(tab)}
+                className={`capitalize w-[200px] py-3 text-sm font-medium rounded-lg transition-all ${
+                  selectedTab === tab ? 'bg-blue-500 text-white shadow-md' : 'border border-blue-500 text-blue-500 hover:bg-blue-50'
+                }`}
+              >
+                {tab.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        <EmptyState
+          title={`No ${selectedTab.replace('_', ' ')} Records Found`}
+          message={`No ${selectedTab.replace('_', ' ')} records found. ${selectedTab === 'pending' ? 'New bank KYC submissions are waiting for review.' : selectedTab === 'approved' ? 'No bank KYC records have been approved yet.' : selectedTab === 'rejected' ? 'No bank KYC records have been rejected yet.' : selectedTab === 'on_hold' ? 'No bank KYC records are currently on hold.' : 'No records found for this status.'}`}
+          iconType="document"
+          showRefreshButton
+          buttonText="Refresh Records"
+          onButtonClick={refetch}
+          className="py-16"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
+        currentMode === "Dark"
+          ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
+          : "bg-white shadow-lg border-1 border-blue-300"
+      }`}
+    >
+      <ToastContainer />
+      <Header category="Page" title="Bank KYC Verification" />
+      
+      <div className="mb-4 flex items-center justify-between">
+        <SearchBox
           value={searchTerm}
           onChange={handleSearch}
+          placeholder="Search by Name or UserId"
+        />
+        <ExportCSVButton
+          exportHook={useLazyExportBankKycRecordsQuery}
+          currentFilters={{
+            search: debouncedSearchTerm,
+            type: getTypeFromTab(selectedTab),
+          }}
+          filename="bank-kyc-records.csv"
+          buttonText="Export to CSV"
         />
       </div>
 
-      <div className="bg-white p-4 rounded-lg shadow-md">
-        <div className="flex justify-start mb-4 gap-4 p-2">
+      <div className="mb-4">
+        <div className="flex justify-start gap-4 p-2">
           {['pending', 'approved', 'rejected', 'on_hold'].map(tab => (
             <button
               key={tab}
               onClick={() => handleTabChange(tab)}
               className={`capitalize w-[200px] py-3 text-sm font-medium rounded-lg transition-all ${
-                selectedTab === tab ? 'bg-amber-500 text-white shadow-md' : 'border border-amber-500 text-amber-500 hover:bg-amber-50'
+                selectedTab === tab ? 'bg-blue-500 text-white shadow-md' : 'border border-blue-500 text-blue-500 hover:bg-blue-50'
               }`}
             >
               {tab.replace('_', ' ')}
             </button>
           ))}
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr>
-                {columns.map((col) => (
-                  <th key={col.id} className="p-4 bg-gray-100 text-left cursor-pointer" onClick={() => handleSort(col.id)}>
-                    {col.label}
-                    {selectedColumn === col.id && (sortOrder === 'asc' ? ' ↑' : ' ↓')}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.length === 0 ? (
-                <tr><td colSpan={columns.length} className="text-center py-12">No Records Available</td></tr>
-              ) : (
-                filteredData.map((user) => (
-                  <tr key={user.user_id} className="border-b hover:bg-gray-50">
-                    <td className="p-4">{user.relevantBankDetail?.id}</td>
-                    <td className="p-4">{user.relevantBankDetail?.user_id}</td>
-                    <td className="p-4">{user.relevantBankDetail?.account_number || 'N/A'}</td>
-                    <td className="p-4">{user.relevantBankDetail?.holder_name || 'N/A'}</td>
-                    <td className="p-4">{convertTimestampToDays(user.relevantBankDetail?.createdAt)}</td>
-                    <td className="p-4">
-                      <span className={`px-3 py-1 rounded-full text-xs ${getStatusClasses(user.relevantBankDetail?.account_status)}`}>
-                        {user.relevantBankDetail?.account_status}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <button onClick={() => openModal(user)} className="px-4 py-2 flex items-center gap-2 bg-blue-100 hover:bg-blue-200 rounded-full">
-                        <FaEye /> View
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
       </div>
-      
-      {isModalOpen && selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-xl max-w-3xl w-[90%] max-h-[80vh] overflow-y-auto">
-            <h2 className="text-xl mb-4 text-center font-bold">
-              Bank Details History - {selectedUser.user_id}
-            </h2>
-            {selectedUser.allBankDetails.map((detail, index) => {
-                const kycRecord = selectedUser.kycRecords.find(kyc => kyc.BankId === detail.id);
-                return (
-                  <div key={detail.id} className={`mb-6 p-6 border rounded-lg ${index === 0 ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}>
-                    <div className="flex justify-between items-center mb-4">
-                      <h3 className={`font-bold ${index === 0 ? 'text-blue-800' : ''}`}>{index === 0 ? 'Latest Record' : `Previous Record`}</h3>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div>
-                          <p className="text-sm text-gray-500 mb-1">Holder Name</p>
-                          {index === 0 && isEditable ? <input name="holder_name" value={editedDetails.holder_name} onChange={handleInputChange} className="w-full p-2 border rounded"/> : <p>{detail.holder_name || 'N/A'}</p>}
-                      </div>
-                      <div>
-                          <p className="text-sm text-gray-500 mb-1">Account Number</p>
-                          {index === 0 && isEditable ? <input name="account_number" value={editedDetails.account_number} onChange={handleInputChange} className="w-full p-2 border rounded"/> : <p>{detail.account_number || 'N/A'}</p>}
-                      </div>
-                      <div>
-                          <p className="text-sm text-gray-500 mb-1">Bank Name</p>
-                          {index === 0 && isEditable ? <input name="bank_name" value={editedDetails.bank_name} onChange={handleInputChange} className="w-full p-2 border rounded"/> : <p>{detail.bank_name || 'N/A'}</p>}
-                      </div>
-                       <div>
-                          <p className="text-sm text-gray-500 mb-1">Branch Name</p>
-                          {index === 0 && isEditable ? <input name="branch_name" value={editedDetails.branch_name} onChange={handleInputChange} className="w-full p-2 border rounded"/> : <p>{detail.branch_name || 'N/A'}</p>}
-                      </div>
-                      <div>
-                          <p className="text-sm text-gray-500 mb-1">IFSC/IBAN Code</p>
-                          {index === 0 && isEditable ? <input name="ifsc_code" value={editedDetails.ifsc_code} onChange={handleInputChange} className="w-full p-2 border rounded"/> : <p>{detail.ifsc_code || 'N/A'}</p>}
-                      </div>
-                      <div>
-                          <p className="text-sm text-gray-500 mb-1">Status</p>
-                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusClasses(detail.account_status)}`}>
-                                {detail.account_status}
-                           </span>
-                      </div>
-                    </div>
-                    
-                    {kycRecord && (
-                      <div className="mt-8 pt-4 border-t">
-                        <h4 className="mb-4 text-gray-500">KYC Document</h4>
-                        <a href={transformDocumentUrl(kycRecord.proofdoc)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View Document</a>
-                      </div>
-                    )}
 
-                    {index === 0 && (
-                      <div className="mt-8 flex gap-2 justify-end">
-                        {!isEditable ? (
-                          <>
-                            {detail.account_status === 'UNDER_REVIEW' && kycRecord && (
-                                <>
-                                    <button onClick={() => handleEditClick(detail)} className="px-4 py-2 bg-blue-500 text-white rounded-lg">Edit</button>
-                                    <button onClick={() => { setSelectedKycId(kycRecord.id); setIsReasonModalOpen(true); }} className="px-4 py-2 bg-orange-500 text-white rounded-lg">On Hold</button>
-                                    <button onClick={() => handleUpdateKycStatus('APPROVED', kycRecord.id)} className="px-4 py-2 bg-green-500 text-white rounded-lg">Approve</button>
-                                    <button onClick={() => handleUpdateKycStatus('REJECTED', kycRecord.id)} className="px-4 py-2 bg-red-500 text-white rounded-lg">Reject</button>
-                                </>
-                            )}
-                            {detail.account_status?.toLowerCase() === 'on_hold' && (
-                                <button onClick={() => handleSendReminder(detail)} disabled={isSendingReminder} className="px-4 py-2 bg-blue-500 text-white rounded-lg flex items-center gap-2">
-                                    {isSendingReminder ? 'Sending...' : <><FaBell/> Send Reminder</>}
-                                </button>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <button onClick={() => handleSaveChanges(detail)} disabled={isUpdatingBankDetails} className="px-4 py-2 bg-green-500 text-white rounded-lg">{isUpdatingBankDetails ? 'Saving...' : 'Save'}</button>
-                            <button onClick={handleCancelEdit} className="px-4 py-2 bg-gray-500 text-white rounded-lg">Cancel</button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-            })}
-            <div className="mt-8 flex justify-end">
-              <button onClick={closeModal} className="px-6 py-2 bg-gray-100 rounded-lg border">Close</button>
-            </div>
-          </div>
-        </div>
+      <div className="overflow-x-auto">
+        <table
+          className={`min-w-max border ${
+            currentMode === "Dark"
+              ? "bg-transparent border-gray-700"
+              : "bg-white border-gray-300"
+          }`}
+        >
+          <thead
+            className={currentMode === "Dark" ? "bg-transparent" : "bg-gray-50"}
+          >
+            <tr>
+              <SortableTableHeader
+                field="id"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              >
+                BANK KYC ID
+              </SortableTableHeader>
+              <SortableTableHeader
+                field="userId"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              >
+                User ID
+              </SortableTableHeader>
+              <SortableTableHeader
+                field="account_number"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              >
+                Account Number
+              </SortableTableHeader>
+              <SortableTableHeader
+                field="holder_name"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              >
+                Holder Name
+              </SortableTableHeader>
+              <SortableTableHeader
+                field="createdAt"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              >
+                Created At
+              </SortableTableHeader>
+              <SortableTableHeader
+                field="account_status"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
+              >
+                Status
+              </SortableTableHeader>
+              <th 
+                className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                  currentMode === "Dark" ? "text-gray-300" : "text-gray-500"
+                }`}
+              >
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody
+            className={`divide-y ${
+              currentMode === "Dark"
+                ? "bg-transparent divide-gray-800"
+                : "bg-white divide-gray-200"
+            }`}
+          >
+            {filteredData.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                  {debouncedSearchTerm ? 'No records match your search criteria.' : 'No records available.'}
+                </td>
+              </tr>
+            ) : (
+              filteredData.map((user, index) => (
+                <tr 
+                  key={user.user_id} 
+                  className={`${
+                    currentMode === "Dark" 
+                      ? "bg-gradient-to-r from-black via-slate-900 to-black hover:bg-slate-800/30" 
+                      : index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                  }`}
+                >
+                  <td
+                    className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
+                      currentMode === "Dark" ? "text-white" : "text-gray-900"
+                    }`}
+                  >
+                    {user.relevantBankDetail?.id || "-"}
+                  </td>
+                  <td
+                    className={`px-6 py-4 whitespace-nowrap text-sm ${
+                      currentMode === "Dark" ? "text-white" : "text-gray-500"
+                    }`}
+                  >
+                    {user.relevantBankDetail?.userId || "-"}
+                  </td>
+                  <td
+                    className={`px-6 py-4 whitespace-nowrap text-sm ${
+                      currentMode === "Dark" ? "text-white" : "text-gray-500"
+                    }`}
+                  >
+                    {user.relevantBankDetail?.account_number || "-"}
+                  </td>
+                  <td
+                    className={`px-6 py-4 whitespace-nowrap text-sm ${
+                      currentMode === "Dark" ? "text-white" : "text-gray-500"
+                    }`}
+                  >
+                    {user.relevantBankDetail?.holder_name || "-"}
+                  </td>
+                  <td
+                    className={`px-6 py-4 whitespace-nowrap text-sm ${
+                      currentMode === "Dark" ? "text-white" : "text-gray-500"
+                    }`}
+                  >
+                    {formatDate(user.relevantBankDetail?.createdAt)}
+                  </td>
+                  <td
+                    className={`px-6 py-4 whitespace-nowrap text-sm ${
+                      currentMode === "Dark" ? "text-white" : "text-gray-500"
+                    }`}
+                  >
+                    <span className={`px-3 py-1 rounded-full text-xs ${getStatusClasses(user.relevantBankDetail?.account_status)}`}>
+                      {user.relevantBankDetail?.account_status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <button
+                      onClick={() => openModal(user)}
+                      className={`px-4 py-2 flex items-center gap-2 rounded-full transition-colors ${
+                        currentMode === "Dark"
+                          ? "bg-blue-600 hover:bg-blue-700 text-white"
+                          : "bg-blue-100 hover:bg-blue-200 text-blue-800"
+                      }`}
+                    >
+                      <FaEye className="w-4 h-4" />
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        totalRecords={totalRecords}
+        backendLimit={backendLimit}
+        recordsCount={bankKycRecords.length}
+      />
+
+      {filteredData.length === 0 && debouncedSearchTerm && (
+        <EmptyState
+          title="No Bank KYC Records Found"
+          message="No records match your search criteria. Try adjusting your search terms."
+          iconType="document"
+          showRefreshButton
+          buttonText="Refresh Bank KYC Records"
+          className="py-16"
+        />
       )}
+      
+       <BankDetailModal
+         isOpen={isModalOpen}
+         selectedUser={selectedUser}
+         isEditable={isEditable}
+         editedDetails={editedDetails}
+         isUpdatingBankDetails={isUpdatingBankDetails}
+         isSendingReminder={isSendingBankReminder}
+         onClose={closeModal}
+         onInputChange={handleInputChange}
+         onEditClick={handleEditClick}
+         onSaveChanges={handleSaveChanges}
+         onCancelEdit={handleCancelEdit}
+         onUpdateKycStatus={handleUpdateKycStatus}
+         onSendReminder={handleSendReminder}
+         onReasonModalOpen={(kycId) => {
+           setSelectedKycId(kycId);
+           setIsReasonModalOpen(true);
+         }}
+         transformDocumentUrl={transformDocumentUrl}
+       />
 
       <ReasonModal
         isOpen={isReasonModalOpen}
         onClose={() => setIsReasonModalOpen(false)}
         onConfirm={handleReasonConfirm}
-          userId={selectedUser?.user_id}
-          bankId={selectedUser?.allBankDetails[0]?.id}
+        userId={selectedUser?.user_id}
+        bankId={selectedUser?.allBankDetails[0]?.id}
         title="Select Reason for Hold"
       />
     </div>

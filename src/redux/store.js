@@ -9,7 +9,6 @@ import bankinfoReducer from "./slices/bankinfo/bankinfoSlice";
 import walletReducer from "./slices/wallet/walletSlice";
 import cepbasketReducer from "./slices/cepbasket/cepbasketSlice";
 import stocksReducer from "./slices/stockmanager/stocksSlice";
-import bankKycReducer from "./slices/bank-kyc/bankkycSlice";
 import withdrawReducer from "./slices/withdraw/withdrawSlice";
 import BankVerification from "./slices/Bankverification/bankverificationSlice";
 import transactions from "./slices/Transaction/TransactionSlice";
@@ -34,7 +33,6 @@ export const store = configureStore({
     wallet: walletReducer,
     cepbasket: cepbasketReducer,
     stocks: stocksReducer,
-    bankKyc: bankKycReducer,
     withdraw: withdrawReducer,
     bankVerification: BankVerification,
     email: emailReducer,

@@ -78,13 +78,13 @@ const Ecommerce = () => {
     },
     {
       title: "Total Investment",
-      amount: `₹${parseFloat(apiData.total_investment_amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+      amount: `AED ${parseFloat(apiData.total_investment_amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`,
       icon: <FiDollarSign />,
       color: "bg-green-500"
     },
     {
       title: "Total Wallet Amount",
-      amount: `₹${parseFloat(apiData.total_wallet_amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+      amount: `AED ${parseFloat(apiData.total_wallet_amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`,
       icon: <FiCreditCard />,
       color: "bg-indigo-500"
     }
@@ -117,8 +117,8 @@ const Ecommerce = () => {
   // Top metrics for display
   const topMetrics = [
     { label: "Total Gold", value: `${parseFloat(apiData.total_gold || 0).toFixed(4)} g` },
-    { label: "Gold Buy Value", value: `₹${parseFloat(apiData.total_gold_buy || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` },
-    { label: "Transaction Amount", value: `₹${parseFloat(apiData.total_transaction_amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}` },
+    { label: "Gold Buy Value", value: `AED ${parseFloat(apiData.total_gold_buy || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}` },
+    { label: "Transaction Amount", value: `AED ${parseFloat(apiData.total_transaction_amount || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}` },
     { label: "Gold Sold", value: `${parseFloat(apiData.total_gold_sold || 0).toFixed(4)} g` }
   ];
 
@@ -236,7 +236,7 @@ const Ecommerce = () => {
                   axisLine={false} 
                   tickLine={false}
                   tick={{ fill: isDark ? '#9CA3AF' : '#6B7280', fontSize: 12 }}
-                  tickFormatter={(value) => `₹${value / 1000}K`}
+                  tickFormatter={(value) => `AED ${value / 1000}K`}
                 />
                 <Bar 
                   dataKey="value" 

@@ -30,3 +30,5 @@ export { default as ActionDialog } from "./ActionDialog";
 export { default as EmptyState } from "./EmptyState";
 export { default as ExchangePickerModal } from "./ExchangePickerModal";
 export { default as SortableTableHeader } from "./SortableTableHeader";
+export { default as SearchBox } from "./SearchBox";
+export { default as StatusTabs } from "./StatusTabs";

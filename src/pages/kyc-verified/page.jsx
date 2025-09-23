@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSelector } from "react-redux";
 import { useGetKycRecordsQuery, useLazyExportKycRecordsQuery } from "../../redux/slices/kyc/kycApi";
 import {
   Header,
@@ -11,11 +12,18 @@ import SearchBox from "../../components/SearchBox";
 import { useStateContext } from "../../contexts/ContextProvider";
 
 const KycVerifiedPage = () => {
-  const [currentPage, setCurrentPage] = useState(1);
+  const { currentMode } = useStateContext();
+ const { kycRecords = [], loading: isLoading, error,currentPage: sliceCurrentPage,totalRecords,totalPages,limit: backendLimit} = useSelector((state) => state.kyc);
+  
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
-  const [sortField, setSortField] = useState("createdAt");
+  const [sortField, setSortField] = useState("");
   const [sortDirection, setSortDirection] = useState("desc");
+  const [localCurrentPage, setLocalCurrentPage] = useState(1);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Use local currentPage for API calls, slice currentPage for display
+  const currentPage = localCurrentPage;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -25,20 +33,48 @@ const KycVerifiedPage = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const { isLoading, error, data } = useGetKycRecordsQuery({
+  // Fetch data using RTK Query - automatically updates slice via extraReducers
+  const { data, refetch, isFetching } = useGetKycRecordsQuery({
     page: currentPage,
     search: debouncedSearchTerm,
   });
+  
+  // Force refetch when page changes (to bypass RTK Query cache)
+  useEffect(() => {
+    console.log("🔄 Page changed, refetching data for page:", currentPage);
+    if (refetch) {
+      refetch();
+    }
+  }, [currentPage, debouncedSearchTerm, refetch]);
 
-  const { currentMode } = useStateContext();
+  // Mark initial load as complete when we get data
+  useEffect(() => {
+    if (kycRecords.length > 0 || error) {
+      setIsInitialLoad(false);
+    }
+  }, [kycRecords.length, error]);
+  
+  // Console log to check slice data (only when data changes)
+  useEffect(() => {
+    console.log("🔍 KYC Slice Data:", {
+      kycRecords: kycRecords,
+      recordsCount: kycRecords?.length,
+      loading: isLoading,
+      error: error,
+      currentPage: sliceCurrentPage,
+      totalRecords: totalRecords,
+      totalPages: totalPages
+    });
+  }, [kycRecords, isLoading, error, localCurrentPage, sliceCurrentPage, totalRecords, totalPages, searchTerm]);
 
-  if (isLoading) {
+  // Show loading state - handle all loading scenarios
+  if (isLoading || isFetching || (isInitialLoad && !error)) {
     return (
       <div
         className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
           currentMode === "Dark"
             ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
-            : "bg-white"
+            : "bg-white border-1 border-blue-300"
         }`}
       >
         <Header category="Page" title="KYC Verified Records" />
@@ -59,7 +95,7 @@ const KycVerifiedPage = () => {
         className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
           currentMode === "Dark"
             ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100"
-            : "bg-white"
+            : "bg-white border-1 border-blue-300"
         }`}
       >
         <Header category="Page" title="KYC Verified Records" />
@@ -73,13 +109,10 @@ const KycVerifiedPage = () => {
     );
   }
 
-  const kycRecords = data?.data || [];
-  const totalRecords = data?.totalRecords || 0;
-  const backendLimit = data?.limit || 10;
-  const totalPages = data?.totalPages || 0;
+  // Pagination data now comes from slice
 
-  // If no data available, show empty state
-  if (kycRecords.length === 0) {
+  // Only show empty state if we're not loading, have no data, no error, and initial load is complete
+  if (kycRecords.length === 0 && !isLoading && !isFetching && !error && !isInitialLoad) {
     return (
       <div
         className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
@@ -128,7 +161,7 @@ const KycVerifiedPage = () => {
       return 0;
     });
 
-  const sortedRecords = sortRecords(kycRecords, sortField, sortDirection);
+  const sortedRecords = sortRecords(kycRecords || [], sortField, sortDirection);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -137,16 +170,17 @@ const KycVerifiedPage = () => {
       setSortField(field);
       setSortDirection("asc");
     }
-    setCurrentPage(1);
+    setLocalCurrentPage(1);
   };
 
   const handlePageChange = (pageNumber) => {
-    setCurrentPage(pageNumber);
+    console.log("🔄 Page change requested:", pageNumber);
+    setLocalCurrentPage(pageNumber);
   };
 
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value.trim());
-    setCurrentPage(1);
+    setLocalCurrentPage(1);
   };
 
   const getRowBackgroundClass = (index) => {
@@ -186,7 +220,7 @@ const KycVerifiedPage = () => {
       className={`m-2 md:m-10 mt-24 p-2 md:p-10 rounded-3xl ${
         currentMode === "Dark"
           ? "bg-gradient-to-br from-black via-slate-900 to-black text-gray-100 border-2 border-gray-700"
-          : "bg-white shadow-lg"
+          : "bg-white shadow-lg border-1 border-blue-300"
       }`}
     >
       <Header category="Page" title="KYC Verified Records" />
