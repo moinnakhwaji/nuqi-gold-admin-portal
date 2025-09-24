@@ -166,15 +166,17 @@ const TransactionsPage = () => {
     sortField,
     sortDirection,
   });
+  console.log("Transactions Response:", transactionsResponse);
 
   const statusOptions = [
     { value: "all", label: "All" },
     { value: "success", label: "Success" },
+    { value: "expired", label: "Expired" },
     { value: "pending", label: "Pending" },
     { value: "received", label: "Received" },
     { value: "sent", label: "Sent" },
     { value: "failed", label: "Failed" },
-    { value: "under_review", label: "Under Review" },
+    // { value: "under_review", label: "Under Review" },
     { value: "declined", label: "Declined" },
     { value: "cancelled", label: "Cancelled" },
   ];
