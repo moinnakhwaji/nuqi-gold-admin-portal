@@ -8,10 +8,10 @@ import {
 } from "../../components";
 import SearchBox from "../../components/SearchBox";
 import { useStateContext } from "../../contexts/ContextProvider";
-import { useGetTransactionsQuery, useLazyExportTransactionsQuery } from "../../redux/slices/Transaction/TransactionApi";
+import { useGetTransactionsQuery, useLazyExportTransactionsQuery,useRefundTransactionMutation } from "../../redux/slices/Transaction/TransactionApi";
 import { Calendar, X } from "lucide-react";
+import Swal from 'sweetalert2';
 
-// This custom component remains unchanged as its logic is self-contained.
 const CustomDatePicker = ({ selected, onChange, placeholder, disabled = false, minDate, maxDate }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(selected || new Date());
@@ -24,7 +24,7 @@ const CustomDatePicker = ({ selected, onChange, placeholder, disabled = false, m
 
   const formatDate = (date) => {
     if (!date) return '';
-    return date.toLocaleDateString('en-GB'); // Format: DD/MM/YYYY
+    return date.toLocaleDateString('en-GB'); 
   };
 
   const getDaysInMonth = (date) => {
@@ -76,6 +76,7 @@ const CustomDatePicker = ({ selected, onChange, placeholder, disabled = false, m
     if (!selected || !date) return false;
     return selected.toDateString() === date.toDateString();
   };
+
 
   return (
     <div className="relative">
@@ -146,11 +147,65 @@ const TransactionsPage = () => {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [refundingId, setRefundingId] = useState(null);
 
   const { currentMode } = useStateContext();
+  const [refundTransaction, { isLoading: isRefunding }] = useRefundTransactionMutation();
 
-  // Redux query now includes all filter, sort, and pagination parameters.
-  // It automatically refetches data whenever any of these state variables change.
+ 
+ const handleRefund = async (transactionId) => {
+  if (!transactionId) return;
+
+  Swal.fire({
+    title: 'Are you sure?',
+    text: `Do you want to refund transaction ID: ${transactionId}? This action cannot be undone.`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#3085d6',
+    cancelButtonColor: '#d33',
+    confirmButtonText: 'Yes, refund it!'
+  }).then(async (result) => {
+    if (result.isConfirmed) {
+      setRefundingId(transactionId);
+
+      try {
+        Swal.fire({
+          title: 'Processing Refund',
+          text: 'Please wait...',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          }
+        });
+
+        await refundTransaction({
+          transactionId,
+          reason: "User requested refund",
+        }).unwrap(); 
+
+
+        Swal.fire(
+          'Refunded!',
+          'The transaction has been successfully refunded.',
+          'success'
+        );
+
+      } catch (error) {
+        console.error("Refund Error:", error);
+        const errorMessage = error.data?.error?.error || error.data?.message || "Failed to process refund.";
+
+        Swal.fire(
+          'Refund Failed',
+          `${errorMessage}`,
+          'error'
+        );
+      } finally {
+        setRefundingId(null); // Reset which button is being processed
+      }
+    }
+  });
+};
+
   const {
     data: transactionsResponse,
     error,
@@ -176,9 +231,9 @@ const TransactionsPage = () => {
     { value: "received", label: "Received" },
     { value: "sent", label: "Sent" },
     { value: "failed", label: "Failed" },
-    // { value: "under_review", label: "Under Review" },
     { value: "declined", label: "Declined" },
     { value: "cancelled", label: "Cancelled" },
+    { value: "refund", label: "Refund" },
   ];
 
   const statusColorMap = {
@@ -190,6 +245,8 @@ const TransactionsPage = () => {
     received: "bg-purple-100 text-purple-800",
     cancelled: "bg-red-100 text-red-800",
     pending: "bg-blue-100 text-blue-800",
+    expired: "bg-orange-100 text-orange-800",
+    refund: "bg-indigo-100 text-indigo-800",
   };
 
   const statusTextMap = {
@@ -201,8 +258,12 @@ const TransactionsPage = () => {
     received: "Received",
     cancelled: "Cancelled",
     pending: "Pending",
+    expired: "Expired",
+    refund: "Refund",
   };
-
+const showActionColumn = transactionsResponse?.data?.some(
+  (transaction) => transaction.status === 'expired'
+);
   // Debounce search term to avoid excessive API calls
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -381,6 +442,9 @@ const TransactionsPage = () => {
               <SortableTableHeader field="transaction_type" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Trans. Type</SortableTableHeader>
               <SortableTableHeader field="status" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Status</SortableTableHeader>
               <SortableTableHeader field="createdAt" sortField={sortField} sortDirection={sortDirection} onSort={handleSort}>Date</SortableTableHeader>
+              
+          {showActionColumn && (<SortableTableHeader field="Action">Action</SortableTableHeader>
+)}
             </tr>
           </thead>
           <tbody className={`divide-y ${currentMode === "Dark" ? "bg-transparent divide-gray-800" : "bg-white divide-gray-200"}`}>
@@ -396,13 +460,27 @@ const TransactionsPage = () => {
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${statusColorMap[transaction.status] || "bg-gray-100 text-gray-800"}`}>
                       {statusTextMap[transaction.status] || transaction.status}
                     </span>
+                
                   </td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm ${currentMode === "Dark" ? "text-white" : "text-gray-500"}`}>{formatDate(transaction.createdAt)}</td>
+                <td className={`px-6 py-4 whitespace-nowrap text-sm ${currentMode === "Dark" ? "text-white" : "text-gray-500"}`}>
+                    {/* Conditional logic to show the button */}
+                    {transaction.status === 'expired' && transaction.payment_method === 'Card' && transaction.transaction_type == 'gold' && (
+                    <button
+  onClick={() => handleRefund(transaction.transaction_id)}
+  disabled={refundingId === transaction.transaction_id && isRefunding}
+   className="px-3 py-1.5 text-xs font-medium text-center text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-300 dark:bg-blue-500 dark:hover:bg-blue-600 dark:focus:ring-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+
+>
+  {(refundingId === transaction.transaction_id && isRefunding) ? 'Refunding...' : 'Refund'}
+</button>
+                    )}
+                </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="px-6 py-12">
+                <td colSpan={8} className="px-6 py-12">
                   <EmptyState
                     title="No Transactions Found"
                     message="No transactions match your current filters. Try adjusting your search criteria."

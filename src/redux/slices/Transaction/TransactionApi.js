@@ -1,11 +1,8 @@
-
-
 import { apiSlice } from "../../api/api";
 
 export const transactionApi = apiSlice.injectEndpoints({
   overrideExisting: true,
   endpoints: (builder) => ({
-
     getTransactions: builder.query({
       query: (params = {}) => {
         const queryParams = {
@@ -28,8 +25,7 @@ export const transactionApi = apiSlice.injectEndpoints({
       },
       providesTags: ["Transactions"],
     }),
-    
- 
+
     exportTransactions: builder.query({
       query: (params = {}) => ({
         url: "operations/transactions/all",
@@ -38,15 +34,26 @@ export const transactionApi = apiSlice.injectEndpoints({
           ...params,
           export: "csv",
         },
-         responseHandler: (response) => response.blob(),
+        responseHandler: (response) => response.blob(),
+      }),
+    }),
+
+    refundTransaction: builder.mutation({
+      query: ({ transactionId, reason }) => ({
+        url: `operations/transactions/${transactionId}`,
+        method: 'POST',
+        body: { reason },
+
       }),
 
-
-   
-
+      invalidatesTags: ['Transactions'],
     }),
   }),
 });
 
 
-export const { useGetTransactionsQuery, useLazyExportTransactionsQuery } = transactionApi;0
+export const {
+  useGetTransactionsQuery,
+  useLazyExportTransactionsQuery,
+  useRefundTransactionMutation, 
+} = transactionApi;
