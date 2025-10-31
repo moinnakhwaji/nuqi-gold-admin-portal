@@ -295,7 +295,7 @@ const Childaccount = () => {
       await sendReminder({ childId, templateId: originalTemplateId }).unwrap();
       
       toast.success("Reminder sent successfully to the parent.");
-      alert("Reminder sent successfully to the parent.");
+      // alert("Reminder sent successfully to the parent.");
       handleCloseModal(); // Close modal on success
       
     } catch (err) {
@@ -354,7 +354,6 @@ const Childaccount = () => {
           : "bg-white shadow-lg border-1 border-blue-300"
       }`}
     >
-      a
       <Header category="Page" title="All Child Account Records" />
 
       <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

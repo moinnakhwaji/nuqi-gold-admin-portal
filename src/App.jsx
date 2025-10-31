@@ -34,6 +34,7 @@ import Transactions from "./pages/transaction/page";
 import "./App.css";
 import { useStateContext } from "./contexts/ContextProvider";
 import ProtectedRoute from "./pages/ProtectedRoute";
+import Splashscreen from "./pages/Splashscreen/page";
 
 // This component lays out the Sidebar, Navbar, and Footer for authenticated users
 const MainLayout = ({ children }) => {
@@ -100,7 +101,8 @@ const App = () => {
         <Route path="/portfolioanalysisdetails" element={<ProtectedRoute><MainLayout><PortfolioAnalysisDetails /></MainLayout></ProtectedRoute>} />
         <Route path="/transactions" element={<ProtectedRoute><MainLayout><Transactions /></MainLayout></ProtectedRoute>} />
         <Route path="/admin/portfolios/:userId/transactions" element={<ProtectedRoute><MainLayout><OrderbookTransactionsPage /></MainLayout></ProtectedRoute>} />
-
+        <Route path="/splashscreen" element={<ProtectedRoute><MainLayout><Splashscreen /></MainLayout></ProtectedRoute>} />
+        
         {/* Catch-all Route: If no other route matches, redirect to the dashboard */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

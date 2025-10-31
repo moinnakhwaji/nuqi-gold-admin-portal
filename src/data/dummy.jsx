@@ -184,7 +184,11 @@ export const links = [
         name: "emailer",
         icon: <BsPlusCircle />,
       },
-            {
+      {
+        name: "splashscreen",
+        icon: <BsPlusCircle />,
+      },
+      {
         name: "ngtech",
         icon: <BsBoxArrowUpRight />, // optional icon for external link
         external: "https://ngtech.nuqigold.com/",

@@ -22,6 +22,9 @@ const WithdrawalsPage = () => {
    const user = useSelector((state) => state.auth.user); // ✅ Get the full user object
     const userRole = user?.role; // ✅ Get the role
 
+  // ✅ NEW: State for the status filter
+  const [statusFilter, setStatusFilter] = useState("");
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm.trim());
@@ -30,9 +33,11 @@ const WithdrawalsPage = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // ✅ MODIFIED: Pass statusFilter to the query
   const { isLoading, error, data } = useGetWithdrawalsQuery({
     page: currentPage,
     search: debouncedSearchTerm,
+    status: statusFilter, // Pass the selected status
   });
 
   const [approveWithdrawal, { isLoading: isUpdating }] = useApproveWithdrawalMutation();
@@ -188,10 +193,27 @@ const WithdrawalsPage = () => {
           onChange={handleSearchChange}
           placeholder="Search by Account Number or Account Name"
         />
+        {/* ✅ Status Filter Dropdown */}
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setCurrentPage(1); // Reset to the first page when the filter changes
+          }}
+          className="px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+        >
+          <option value="">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="in_process">In Process</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
         <ExportCSVButton
           exportHook={useLazyExportWithdrawalsQuery}
           currentFilters={{
             search: debouncedSearchTerm,
+            status: statusFilter, // Include status in export filters
           }}
           filename="withdrawal-records.csv"
           buttonText="Export to CSV"
