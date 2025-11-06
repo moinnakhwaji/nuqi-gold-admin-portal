@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { FiUsers, FiCheckCircle, FiDollarSign, FiCreditCard } from 'react-icons/fi';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
-import { useGetDashboardDataQuery } from '../redux/slices/dashboard/dashboardApi';
+import React, { useState, useEffect } from 'react';
+import { FiUsers, FiCheckCircle, FiDollarSign, FiCreditCard, FiCalendar } from 'react-icons/fi';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Tooltip } from 'recharts';
+import { useGetDashboardDataQuery, useGetTotalCountQuery, useGetUserGrowthQuery } from '../redux/slices/dashboard/dashboardApi';
 import { useSelector } from 'react-redux';
 
 
 const StatCard = ({ stat, isDark }) => (
-  <div className={`${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} 
+  <div className={`${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}
                    rounded-xl p-6 border transition-all duration-200 hover:shadow-lg`}
   >
     <div className="flex items-start justify-between">
@@ -29,15 +29,112 @@ const StatCard = ({ stat, isDark }) => (
   </div>
 );
 
+const DateRangeSelector = ({ selectedRange, onRangeChange, isDark, customStartDate, customEndDate, onCustomDateChange }) => {
+  const ranges = [
+    { label: 'Daily', value: 'daily' },
+    { label: 'Weekly', value: 'weekly' },
+    { label: 'Monthly', value: 'monthly' },
+    { label: 'Yearly', value: 'yearly' },
+    { label: 'Custom', value: 'custom' }
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center space-x-2">
+        <FiCalendar className={isDark ? 'text-gray-400' : 'text-gray-600'} />
+        <div className="flex items-center space-x-2 flex-wrap">
+          {ranges.map((range) => (
+            <button
+              key={range.value}
+              onClick={() => onRangeChange(range.value)}
+              className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+                selectedRange === range.value
+                  ? 'bg-blue-500 text-white'
+                  : isDark
+                  ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {range.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {selectedRange === 'custom' && (
+        <div className="flex items-center space-x-3 ml-6">
+          <div className="flex items-center space-x-2">
+            <label className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>From:</label>
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={(e) => onCustomDateChange('start', e.target.value)}
+              className={`px-2 py-1 text-xs rounded border ${
+                isDark
+                  ? 'bg-gray-800 border-gray-700 text-gray-300'
+                  : 'bg-white border-gray-300 text-gray-700'
+              }`}
+            />
+          </div>
+          <div className="flex items-center space-x-2">
+            <label className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>To:</label>
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={(e) => onCustomDateChange('end', e.target.value)}
+              className={`px-2 py-1 text-xs rounded border ${
+                isDark
+                  ? 'bg-gray-800 border-gray-700 text-gray-300'
+                  : 'bg-white border-gray-300 text-gray-700'
+              }`}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Ecommerce = () => {
   const [isDark, setIsDark] = useState(false);
+  const [selectedRange, setSelectedRange] = useState('monthly');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+
+  // API queries
   const { data, isLoading, error } = useGetDashboardDataQuery();
+  const { data: totalCountData, isLoading: totalCountLoading } = useGetTotalCountQuery();
+  console.log(totalCountData, "total count data");
 
+  // Build query params for user growth
+  const userGrowthParams = selectedRange === 'custom' && customStartDate && customEndDate
+    ? { range: selectedRange, startDate: customStartDate, endDate: customEndDate }
+    : { range: selectedRange };
 
- 
-  // console.log(data, "data ");
+  const { data: userGrowthData, isLoading: userGrowthLoading } = useGetUserGrowthQuery(userGrowthParams);
 
-  // Loading state
+  console.log(userGrowthData, "user growth data");
+
+  console.log(data, "dashboard data");
+  console.log(totalCountData, "total count data");
+  console.log(userGrowthData, "user growth data");
+
+  const handleRangeChange = (range) => {
+    setSelectedRange(range);
+    if (range !== 'custom') {
+      setCustomStartDate('');
+      setCustomEndDate('');
+    }
+  };
+
+  const handleCustomDateChange = (type, value) => {
+    if (type === 'start') {
+      setCustomStartDate(value);
+    } else {
+      setCustomEndDate(value);
+    }
+  }; 
+
   if (isLoading) {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-gray-950 text-white' : 'bg-gray-50 text-gray-900'} p-6`}>
@@ -61,6 +158,8 @@ const Ecommerce = () => {
 
   // Extract data from API response
   const apiData = data?.data || {};
+  const totalCount = totalCountData?.data || {};
+  console.log(apiData, "apiData");
 
   // Transform API data to match component structure
   const dashboardStats = [
@@ -69,6 +168,18 @@ const Ecommerce = () => {
       amount: apiData.totalUsers?.toString() || "0",
       icon: <FiUsers />,
       color: "bg-purple-500"
+    },
+    {
+      title: "Child Users",
+      amount: totalCount.totalChildAccounts?.toString() || "0",
+      icon: <FiUsers />,
+      color: "bg-pink-500"
+    },
+    {
+      title: "Parent Users",
+      amount: totalCount.totalParentAccounts?.toString() || "0",
+      icon: <FiUsers />,
+      color: "bg-cyan-500"
     },
     {
       title: "KYC Verified Users",
@@ -103,16 +214,9 @@ const Ecommerce = () => {
     { name: 'Gold Sold', value: parseFloat(apiData.total_gold_sold || 0), color: '#FF6B6B' }
   ];
 
-  // Sample data for charts that don't have direct API equivalents
-  const totalUsersChart = [
-    { month: 'Jan', thisYear: Math.floor(apiData.totalUsers * 0.7), thisMonth: Math.floor(apiData.totalUsers * 0.8) },
-    { month: 'Feb', thisYear: Math.floor(apiData.totalUsers * 0.75), thisMonth: Math.floor(apiData.totalUsers * 0.85) },
-    { month: 'Mar', thisYear: Math.floor(apiData.totalUsers * 0.8), thisMonth: Math.floor(apiData.totalUsers * 0.9) },
-    { month: 'Apr', thisYear: Math.floor(apiData.totalUsers * 0.85), thisMonth: Math.floor(apiData.totalUsers * 0.92) },
-    { month: 'May', thisYear: Math.floor(apiData.totalUsers * 0.9), thisMonth: Math.floor(apiData.totalUsers * 0.95) },
-    { month: 'Jun', thisYear: Math.floor(apiData.totalUsers * 0.95), thisMonth: Math.floor(apiData.totalUsers * 0.98) },
-    { month: 'Jul', thisYear: apiData.totalUsers, thisMonth: apiData.totalUsers }
-  ];
+  // User growth chart data from API
+  const userGrowthChartData = userGrowthData?.data?.userGrowth || [];
+  console.log(userGrowthChartData, "userGrowthChartData");
 
   // Top metrics for display
   const topMetrics = [
@@ -139,7 +243,7 @@ const Ecommerce = () => {
       </div> */}
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         {dashboardStats.map((stat, index) => (
           <StatCard key={index} stat={stat} isDark={isDark} />
         ))}
@@ -147,56 +251,68 @@ const Ecommerce = () => {
 
       {/* Main Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Total Users Chart */}
-        <div className={`col-span-2 ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'} 
+        {/* User Growth Trend Chart */}
+        <div className={`col-span-2 ${isDark ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}
                          rounded-xl p-6 border`}
         >
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold">User Growth Trend</h3>
-            <div className="flex items-center space-x-4 text-sm">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-blue-500 rounded-full" />
-                <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>This year</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-gray-400 rounded-full" />
-                <span className={isDark ? 'text-gray-400' : 'text-gray-600'}>This month</span>
-              </div>
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold mb-4">User Growth Trend</h3>
+            <DateRangeSelector
+              selectedRange={selectedRange}
+              onRangeChange={handleRangeChange}
+              isDark={isDark}
+              customStartDate={customStartDate}
+              customEndDate={customEndDate}
+              onCustomDateChange={handleCustomDateChange}
+            />
+          </div>
+
+          {userGrowthLoading ? (
+            <div className="h-64 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
             </div>
-          </div>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={totalUsersChart}>
-                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#E5E7EB'} />
-                <XAxis 
-                  dataKey="month" 
-                  axisLine={false} 
-                  tickLine={false}
-                  tick={{ fill: isDark ? '#9CA3AF' : '#6B7280', fontSize: 12 }}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false}
-                  tick={{ fill: isDark ? '#9CA3AF' : '#6B7280', fontSize: 12 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="thisYear" 
-                  stroke="#3B82F6" 
-                  strokeWidth={2}
-                  dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="thisMonth" 
-                  stroke="#9CA3AF" 
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
-                  dot={{ fill: '#9CA3AF', strokeWidth: 2, r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          ) : userGrowthChartData.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={userGrowthChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#E5E7EB'} />
+                  <XAxis
+                    dataKey="date"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: isDark ? '#9CA3AF' : '#6B7280', fontSize: 12 }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: isDark ? '#9CA3AF' : '#6B7280', fontSize: 12 }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+                      border: `1px solid ${isDark ? '#374151' : '#E5E7EB'}`,
+                      borderRadius: '8px',
+                      color: isDark ? '#F9FAFB' : '#111827'
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="count"
+                    stroke="#3B82F6"
+                    strokeWidth={2}
+                    dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
+                    name="Users"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center">
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                No data available for selected range
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Key Metrics */}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
+import { FiCalendar, FiX } from 'react-icons/fi';
 import { useGetKycRecordsQuery, useLazyExportKycRecordsQuery } from "../../redux/slices/kyc/kycApi";
 import {
   Header,
@@ -13,8 +14,8 @@ import { useStateContext } from "../../contexts/ContextProvider";
 
 const KycVerifiedPage = () => {
   const { currentMode } = useStateContext();
- const { kycRecords = [], loading: isLoading, error,currentPage: sliceCurrentPage,totalRecords,totalPages,limit: backendLimit} = useSelector((state) => state.kyc);
-  
+  const { kycRecords = [], loading: isLoading, error, currentPage: sliceCurrentPage, totalRecords, totalPages, limit: backendLimit } = useSelector((state) => state.kyc);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [sortField, setSortField] = useState("");
@@ -22,7 +23,11 @@ const KycVerifiedPage = () => {
   const [localCurrentPage, setLocalCurrentPage] = useState(1);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   
-  // Use local currentPage for API calls, slice currentPage for display
+  // Date filter states
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [showDateFilter, setShowDateFilter] = useState(false);
+  
   const currentPage = localCurrentPage;
 
   useEffect(() => {
@@ -33,28 +38,27 @@ const KycVerifiedPage = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  // Fetch data using RTK Query - automatically updates slice via extraReducers
+  // Fetch data using RTK Query
   const { data, refetch, isFetching } = useGetKycRecordsQuery({
     page: currentPage,
     search: debouncedSearchTerm,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
   });
   
-  // Force refetch when page changes (to bypass RTK Query cache)
   useEffect(() => {
     console.log("🔄 Page changed, refetching data for page:", currentPage);
     if (refetch) {
       refetch();
     }
-  }, [currentPage, debouncedSearchTerm, refetch]);
+  }, [currentPage, debouncedSearchTerm, startDate, endDate, refetch]);
 
-  // Mark initial load as complete when we get data
   useEffect(() => {
     if (kycRecords.length > 0 || error) {
       setIsInitialLoad(false);
     }
   }, [kycRecords.length, error]);
   
-  // Console log to check slice data (only when data changes)
   useEffect(() => {
     console.log("🔍 KYC Slice Data:", {
       kycRecords: kycRecords,
@@ -63,11 +67,11 @@ const KycVerifiedPage = () => {
       error: error,
       currentPage: sliceCurrentPage,
       totalRecords: totalRecords,
-      totalPages: totalPages
+      totalPages: totalPages,
+      filters: { startDate, endDate }
     });
-  }, [kycRecords, isLoading, error, localCurrentPage, sliceCurrentPage, totalRecords, totalPages, searchTerm]);
+  }, [kycRecords, isLoading, error, localCurrentPage, sliceCurrentPage, totalRecords, totalPages, searchTerm, startDate, endDate]);
 
-  // Show loading state - handle all loading scenarios
   if (isLoading || isFetching || (isInitialLoad && !error)) {
     return (
       <div
@@ -109,9 +113,6 @@ const KycVerifiedPage = () => {
     );
   }
 
-  // Pagination data now comes from slice
-
-  // Only show empty state if we're not loading, have no data, no error, and initial load is complete
   if (kycRecords.length === 0 && !isLoading && !isFetching && !error && !isInitialLoad) {
     return (
       <div
@@ -183,6 +184,17 @@ const KycVerifiedPage = () => {
     setLocalCurrentPage(1);
   };
 
+  const handleDateFilterApply = () => {
+    setLocalCurrentPage(1);
+    setShowDateFilter(false);
+  };
+
+  const handleDateFilterClear = () => {
+    setStartDate("");
+    setEndDate("");
+    setLocalCurrentPage(1);
+  };
+
   const getRowBackgroundClass = (index) => {
     if (currentMode === "Dark") {
       return "bg-gradient-to-r from-black via-slate-900 to-black";
@@ -190,7 +202,6 @@ const KycVerifiedPage = () => {
     return index % 2 === 0 ? "bg-white" : "bg-gray-50";
   };
 
-  // Format date helper function
   const formatDate = (dateString) => {
     if (!dateString) return "";
     try {
@@ -200,14 +211,11 @@ const KycVerifiedPage = () => {
     }
   };
 
-  // Format date of birth helper function
   const formatDateOfBirth = (dateString) => {
     if (!dateString) return "";
-    // If it's already in DD/MM/YYYY format, return as is
     if (dateString.includes("/")) {
       return dateString;
     }
-    // Otherwise try to format it
     try {
       return new Date(dateString).toLocaleDateString("en-GB");
     } catch (e) {
@@ -225,21 +233,126 @@ const KycVerifiedPage = () => {
     >
       <Header category="Page" title="KYC Verified Records" />
 
-      {/* Search Box and Export Button */}
-      <div className="mb-4 flex items-center justify-between">
-        <SearchBox
-          value={searchTerm}
-          onChange={handleSearchChange}
-          placeholder="Search by User ID or Full Name"
-        />
-        <ExportCSVButton
-          exportHook={useLazyExportKycRecordsQuery}
-          currentFilters={{
-            search: debouncedSearchTerm,
-          }}
-          filename="kyc-records.csv"
-          buttonText="Export to CSV"
-        />
+      {/* Search Box, Date Filter and Export Button */}
+      <div className="mb-4 space-y-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1 w-full sm:w-auto">
+            <div className="w-full sm:w-auto sm:flex-1">
+              <SearchBox
+                value={searchTerm}
+                onChange={handleSearchChange}
+                placeholder="Search by User ID or Full Name"
+              />
+            </div>
+            
+            {/* Date Filter Toggle Button */}
+            <button
+              onClick={() => setShowDateFilter(!showDateFilter)}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors whitespace-nowrap ${
+                currentMode === "Dark"
+                  ? "bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700"
+                  : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 shadow-sm"
+              } ${(startDate || endDate) ? 'ring-2 ring-blue-500' : ''}`}
+            >
+              <FiCalendar className="text-lg" />
+              <span className="text-sm font-medium">Date Filter</span>
+              {(startDate || endDate) && (
+                <span className="bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  Active
+                </span>
+              )}
+            </button>
+          </div>
+
+          <ExportCSVButton
+            exportHook={useLazyExportKycRecordsQuery}
+            currentFilters={{
+              search: debouncedSearchTerm,
+              startDate: startDate || undefined,
+              endDate: endDate || undefined,
+            }}
+            filename="kyc-records.csv"
+            buttonText="Export to CSV"
+          />
+        </div>
+
+        {/* Date Filter Panel */}
+        {showDateFilter && (
+          <div
+            className={`p-4 rounded-lg border ${
+              currentMode === "Dark"
+                ? "bg-gray-800 border-gray-700"
+                : "bg-gray-50 border-gray-200"
+            }`}
+          >
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className={`text-sm font-medium ${currentMode === "Dark" ? "text-gray-300" : "text-gray-700"}`}>
+                  From:
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className={`px-3 py-2 rounded-lg border text-sm ${
+                    currentMode === "Dark"
+                      ? "bg-gray-900 border-gray-600 text-gray-200"
+                      : "bg-white border-gray-300 text-gray-700"
+                  }`}
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className={`text-sm font-medium ${currentMode === "Dark" ? "text-gray-300" : "text-gray-700"}`}>
+                  To:
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className={`px-3 py-2 rounded-lg border text-sm ${
+                    currentMode === "Dark"
+                      ? "bg-gray-900 border-gray-600 text-gray-200"
+                      : "bg-white border-gray-300 text-gray-700"
+                  }`}
+                />
+              </div>
+
+              <button
+                onClick={handleDateFilterApply}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm font-medium transition-colors"
+              >
+                Apply
+              </button>
+
+              {(startDate || endDate) && (
+                <button
+                  onClick={handleDateFilterClear}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                    currentMode === "Dark"
+                      ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
+                  <FiX />
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {/* Active Filter Display */}
+            {(startDate || endDate) && (
+              <div className="mt-3 pt-3 border-t border-gray-600">
+                <p className={`text-sm ${currentMode === "Dark" ? "text-gray-400" : "text-gray-600"}`}>
+                  <span className="font-medium">Active Filter:</span>{" "}
+                  {startDate && `From ${new Date(startDate).toLocaleDateString("en-GB")}`}
+                  {startDate && endDate && " - "}
+                  {endDate && `To ${new Date(endDate).toLocaleDateString("en-GB")}`}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -279,8 +392,6 @@ const KycVerifiedPage = () => {
               >
                 Full Name
               </SortableTableHeader>
-         
-          
               <SortableTableHeader
                 field="documentType"
                 sortField={sortField}
@@ -289,7 +400,6 @@ const KycVerifiedPage = () => {
               >
                 Document Type
               </SortableTableHeader>
-            
               <SortableTableHeader
                 field="address"
                 sortField={sortField}
@@ -298,7 +408,6 @@ const KycVerifiedPage = () => {
               >
                 Address
               </SortableTableHeader>
-             
               <SortableTableHeader
                 field="createdAt"
                 sortField={sortField}
@@ -315,7 +424,7 @@ const KycVerifiedPage = () => {
               >
                 Updated At
               </SortableTableHeader>
-                  <SortableTableHeader
+              <SortableTableHeader
                 field="dateOfBirth"
                 sortField={sortField}
                 sortDirection={sortDirection}
@@ -355,8 +464,6 @@ const KycVerifiedPage = () => {
                 >
                   {record.fullName || "-"}
                 </td>
-             
-              
                 <td
                   className={`px-6 py-4 whitespace-nowrap text-sm ${
                     currentMode === "Dark" ? "text-white" : "text-gray-500"
@@ -364,7 +471,6 @@ const KycVerifiedPage = () => {
                 >
                   {record.documentType || "-"}
                 </td>
-             
                 <td
                   className={`px-6 py-4 text-sm ${
                     currentMode === "Dark" ? "text-white" : "text-gray-500"
@@ -376,7 +482,6 @@ const KycVerifiedPage = () => {
                     </p>
                   </div>
                 </td>
-              
                 <td
                   className={`px-6 py-4 whitespace-nowrap text-sm ${
                     currentMode === "Dark" ? "text-white" : "text-gray-500"
@@ -391,7 +496,7 @@ const KycVerifiedPage = () => {
                 >
                   {formatDate(record.updatedAt)}
                 </td>
-                  <td
+                <td
                   className={`px-6 py-4 whitespace-nowrap text-sm ${
                     currentMode === "Dark" ? "text-white" : "text-gray-500"
                   }`}

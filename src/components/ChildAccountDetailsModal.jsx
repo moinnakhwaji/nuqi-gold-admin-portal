@@ -1,4 +1,5 @@
-import React from "react";
+import axios from "axios";
+import React, { useEffect, useState } from "react";
 
 const ChildAccountDetailsModal = ({
   isOpen,
@@ -20,6 +21,77 @@ const ChildAccountDetailsModal = ({
 }) => {
   if (!isOpen || !selectedRecord) return null;
 
+
+    // --- START: NEW STATE AND LOGIC ---
+  const [onHoldReason, setOnHoldReason] = useState(null);
+  const [isLoadingReason, setIsLoadingReason] = useState(false);
+  const [reasonError, setReasonError] = useState('');
+
+useEffect(() => {
+    setOnHoldReason(null);
+    setReasonError('');
+    setIsLoadingReason(false);
+
+    const isOnhold = selectedRecord?.status === "onhold" || selectedRecord?.status === "on_hold";
+    
+    if (isOpen && selectedRecord && isOnhold) {
+      const fetchOnholdReason = async () => {
+        setIsLoadingReason(true);
+        try {
+          // --- START: FIX ---
+          
+          // 1. Get the token from local storage (or wherever you store it)
+          const token = localStorage.getItem("authToken"); // Or "user_token", "authToken", etc.
+
+          if (!token) {
+              throw new Error("Authentication token not found.");
+          }
+
+          const parentId = selectedRecord.parentUser?.id;
+          if (!parentId) {
+              throw new Error("Parent ID is not available.");
+          }
+          
+          const API_URL = `https://uatapi.nuqigold.com/child/onhold-reason/${selectedRecord.id}/${parentId}`;
+
+          // 2. Add the Authorization header to the request
+          const response = await axios.get(API_URL, {
+            headers: {
+              // The 'Bearer ' prefix is crucial and standard practice
+              Authorization: `Bearer ${token}` 
+            }
+          });
+          console.log("API Response:", response.data);
+          
+          // --- END: FIX ---
+
+          if (response.data && response.data.templateId) {
+            let reasonText = "Reason not found in templates.";
+            for (const template of templates) {
+                // Ensure template IDs are compared with the same type (e.g., both numbers)
+                if (parseInt(template.id) === response.data.templateId) {
+                    reasonText = template.child_reasons[0]?.reason || "Template reason text missing.";
+                    break;
+                }
+            }
+            setOnHoldReason(reasonText);
+          }
+        } catch (error) {
+          console.error("Failed to fetch on-hold reason:", error);
+          // Check if the error is specifically an auth error
+          if (error.response && error.response.status === 401) {
+            setReasonError("You are not authorized. Please log in again.");
+          } else {
+            setReasonError("Could not load the reason. Please try again.");
+          }
+        } finally {
+          setIsLoadingReason(false);
+        }
+      };
+
+      fetchOnholdReason();
+    }
+  }, [isOpen, selectedRecord, templates]);
   return (
     <div
       className="fixed inset-0  bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
@@ -202,6 +274,23 @@ const ChildAccountDetailsModal = ({
                 </div>
               </div>
             </div>
+
+                 {(selectedRecord.status === "onhold" || selectedRecord.status === "on_hold") && (
+                  <div>
+                    <label className={`text-xs font-medium uppercase tracking-wide ${ currentMode === "Dark" ? "text-gray-400" : "text-gray-500"}`}>
+                      Reason for Hold
+                    </label>
+                    <div className={`mt-1 text-sm p-3 rounded-lg ${ currentMode === 'Dark' ? 'bg-slate-800' : 'bg-gray-100'}`}>
+                      {isLoadingReason && <p className="animate-pulse">Loading reason...</p>}
+                      {reasonError && <p className="text-red-500">{reasonError}</p>}
+                      {!isLoadingReason && !reasonError && (
+                        <p className={`${ currentMode === 'Dark' ? 'text-orange-300' : 'text-orange-700'}`}>
+                          {onHoldReason || "No reason specified."}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
             {/* Parent Information */}
             <div className="space-y-4">

@@ -1,4 +1,5 @@
-import React from 'react';
+import axios from 'axios';
+import React, { useEffect, useState } from 'react';
 import { FaEye, FaBell, FaEdit, FaSave, FaTimes, FaCheck, FaTimesCircle } from 'react-icons/fa';
 
 const BankDetailModal = ({
@@ -20,6 +21,34 @@ const BankDetailModal = ({
 }) => {
   if (!isOpen || !selectedUser) return null;
 
+  // Template ID to user-friendly message mapping
+  const getReasonMessage = (templateId) => {
+    const reasonMap = {
+      1: "Account holder name does not match with bank records",
+      2: "Invalid or incorrect account number provided",
+      3: "IFSC code does not match with the bank branch",
+      4: "Bank statement is unclear or unreadable",
+      5: "Bank statement is outdated (older than 3 months)",
+      6: "Account holder name mismatch with KYC documents",
+      7: "Bank account is not active or has been closed",
+      8: "Insufficient account balance or transaction history",
+      9: "Bank statement does not show account holder name",
+      10: "Bank statement is not certified or stamped",
+      11: "Account type is not acceptable (e.g., credit card statement)",
+      12: "Multiple accounts detected - please verify primary account",
+      13: "Bank details do not match with Aadhaar information",
+      14: "Signature mismatch on bank documents",
+      15: "Branch address verification required",
+      16: "Account opening date is too recent",
+      17: "Account is in joint ownership - single ownership required",
+      18: "Bank document appears to be tampered or edited",
+      19: "Additional verification required from the bank",
+      20: "Bank is not in the approved list of financial institutions"
+    };
+
+    return reasonMap[templateId] || `Verification pending - Reference ID: ${templateId}`;
+  };
+
   // Helper to determine tailwind classes based on KYC status
   const getStatusClasses = (status) => {
     switch (status?.toUpperCase()) {
@@ -35,6 +64,77 @@ const BankDetailModal = ({
         return 'bg-gray-100 text-gray-800 border border-gray-300';
     }
   };
+
+   // NEW: State to store the fetched on-hold reasons and loading status
+  const [onHoldReasons, setOnHoldReasons] = useState({});
+  const [loadingReasons, setLoadingReasons] = useState({});
+
+  // NEW: useEffect to fetch on-hold reasons when the selectedUser changes
+  useEffect(() => {
+    if (!isOpen || !selectedUser?.allBankDetails) {
+      return;
+    }
+
+    const fetchOnHoldReasons = async () => {
+      // Find all bank details that are currently on hold
+      const onHoldDetails = selectedUser.allBankDetails.filter(
+        (detail) => detail.account_status?.toUpperCase() === 'ON_HOLD'
+      );
+
+      // If none are on hold, do nothing
+      if (onHoldDetails.length === 0) return;
+
+      // Set loading state for each on-hold record
+      const initialLoadingState = {};
+      onHoldDetails.forEach(detail => {
+        initialLoadingState[detail.id] = true;
+      });
+      setLoadingReasons(initialLoadingState);
+
+      // Loop through each on-hold record and fetch its reason
+      for (const detail of onHoldDetails) {
+        try {
+          const response = await axios.get(
+            `https://uatapi.nuqigold.com/user/onhold_bankKyc/bankId`,
+            { data: { BankId: detail.id } }
+          );
+
+          // Filter the response to only get records matching this specific BankId
+          if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+            const matchingReasons = response.data.filter(
+              (reason) => reason.BankId === detail.id
+            );
+
+            if (matchingReasons.length > 0) {
+              // Get the most recent reason for this BankId (last item in array)
+              const latestReason = matchingReasons[matchingReasons.length - 1];
+              setOnHoldReasons(prev => ({ ...prev, [detail.id]: latestReason }));
+            } else {
+              // No matching reason found for this specific BankId
+              setOnHoldReasons(prev => ({ ...prev, [detail.id]: { templateId: 'No reason found for this BankId' } }));
+            }
+          } else {
+            // API returned empty or invalid data
+            setOnHoldReasons(prev => ({ ...prev, [detail.id]: { templateId: 'Reason not found' } }));
+          }
+        } catch (error) {
+          console.error(`Error fetching on-hold reason for BankId ${detail.id}:`, error);
+          setOnHoldReasons(prev => ({ ...prev, [detail.id]: { templateId: 'Error fetching reason' } }));
+        } finally {
+          // Set loading to false for this specific record
+          setLoadingReasons(prev => ({ ...prev, [detail.id]: false }));
+        }
+      }
+    };
+
+    fetchOnHoldReasons();
+    
+    // Cleanup function to reset state when the modal is closed or user changes
+    return () => {
+      setOnHoldReasons({});
+      setLoadingReasons({});
+    };
+  }, [isOpen, selectedUser]); // Re-run when the modal opens or the user changes
 
   return (
     <div className="fixed inset-0 bg-opacity-50 backdrop-blur-md flex items-center justify-center z-50">
@@ -173,6 +273,37 @@ const BankDetailModal = ({
                   </p>
                 </div>
               </div>
+
+               {detail.account_status?.toUpperCase() === 'ON_HOLD' && (
+                <div className="my-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                  <p className="text-sm font-semibold text-orange-800 mb-2">
+                    On-Hold Reason:
+                  </p>
+                  {loadingReasons[detail.id] && (
+                    <p className="text-sm text-gray-600 italic">Loading reason...</p>
+                  )}
+                  {!loadingReasons[detail.id] && onHoldReasons[detail.id] && (
+                    <div>
+                      {typeof onHoldReasons[detail.id].templateId === 'number' ? (
+                        <p className="text-sm text-gray-700">
+                          {getReasonMessage(onHoldReasons[detail.id].templateId)}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-600 italic">
+                          {onHoldReasons[detail.id].templateId === 'No reason found for this BankId'
+                            ? "No specific reason has been recorded for this account hold. Please contact support for more information."
+                            : onHoldReasons[detail.id].templateId === 'Reason not found'
+                            ? "Reason information is not available at this time."
+                            : onHoldReasons[detail.id].templateId === 'Error fetching reason'
+                            ? "Unable to load reason details. Please try again later."
+                            : onHoldReasons[detail.id].templateId
+                          }
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               
               {/* KYC Document Section */}
               <div className="mt-6 pt-4 border-t border-gray-200">

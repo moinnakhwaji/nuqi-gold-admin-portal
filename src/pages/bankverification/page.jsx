@@ -53,6 +53,8 @@ const BankVerification = () => {
   const [editedDetails, setEditedDetails] = useState({});
   const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
   const [selectedKycId, setSelectedKycId] = useState(null);
+  
+  
 
   // Map frontend tab names to backend type values
   const getTypeFromTab = (tab) => {
@@ -90,6 +92,7 @@ const BankVerification = () => {
   const [updateOnHoldKycStatus] = useUpdateOnHoldKycStatusMutation(); // <-- Instantiate new hook
   const [sendBankKycReminder, { isLoading: isSendingBankReminder }] = useSendBankKycReminderMutation();
   const [getOnHoldBankKyc, { isLoading: isOnHoldLoading }] = useLazyGetOnHoldBankKycQuery();
+  console.log('📊 Bank KYC Data:', getOnHoldBankKyc);
 
   // Data processing
   const processDataWithRelevantDetails = (dataToProcess = []) => {
