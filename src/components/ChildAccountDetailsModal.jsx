@@ -1,5 +1,6 @@
 import axios from "axios";
 import React, { useEffect, useState } from "react";
+import API_BASE_URL from "../config/api";
 
 const ChildAccountDetailsModal = ({
   isOpen,
@@ -52,7 +53,7 @@ useEffect(() => {
               throw new Error("Parent ID is not available.");
           }
           
-          const API_URL = `https://uatapi.nuqigold.com/child/onhold-reason/${selectedRecord.id}/${parentId}`;
+          const API_URL = `${API_BASE_URL}/child/onhold-reason/${selectedRecord.id}/${parentId}`;
 
           // 2. Add the Authorization header to the request
           const response = await axios.get(API_URL, {
@@ -92,6 +93,7 @@ useEffect(() => {
       fetchOnholdReason();
     }
   }, [isOpen, selectedRecord, templates]);
+ 
   return (
     <div
       className="fixed inset-0  bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4 z-50"

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import { FaEye, FaBell, FaEdit, FaSave, FaTimes, FaCheck, FaTimesCircle } from 'react-icons/fa';
+import API_BASE_URL from '../../config/api';
 
 const BankDetailModal = ({
   isOpen,
@@ -95,7 +96,7 @@ const BankDetailModal = ({
       for (const detail of onHoldDetails) {
         try {
           const response = await axios.get(
-            `https://uatapi.nuqigold.com/user/onhold_bankKyc/bankId`,
+            `${API_BASE_URL}/user/onhold_bankKyc/bankId`,
             { data: { BankId: detail.id } }
           );
 

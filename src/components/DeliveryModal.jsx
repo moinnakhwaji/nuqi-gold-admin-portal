@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
+import API_BASE_URL from "../config/api";
 
 const DeliveryModal = ({ isOpen, onClose, deliveryData }) => {
   const [isDownloading, setIsDownloading] = useState(false);
@@ -7,7 +8,7 @@ const DeliveryModal = ({ isOpen, onClose, deliveryData }) => {
   if (!isOpen || !deliveryData) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-900 bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50">
+    <div className="fixed inset-0  bg-opacity-40 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto border border-gray-100">
         {/* Modal Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
@@ -237,7 +238,7 @@ const DeliveryModal = ({ isOpen, onClose, deliveryData }) => {
                   console.log('Downloading invoice for order:', deliveryData.order_id);
                   
                   // Use axios to get the invoice as blob to bypass CSP
-                  const response = await axios.get(`https://uatapi.nuqigold.com/user/portal/physical-delivery/invoice/${deliveryData.order_id}`, {
+                  const response = await axios.get(`${API_BASE_URL}/user/portal/physical-delivery/invoice/${deliveryData.order_id}`, {
                     responseType: 'blob'
                   });
                   

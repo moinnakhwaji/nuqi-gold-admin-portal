@@ -4,7 +4,7 @@ import { logout } from '../slices/auth/authSlice'; // You correctly imported thi
 // This is your standard base query
 const baseQuery = fetchBaseQuery({
   // baseUrl: 'https://uatapi.nuqiwealth.com/',
-  baseUrl: 'http://localhost:5000/',
+  baseUrl: 'http://localhost:9000/',
   credentials: "include", 
   prepareHeaders: (headers) => {
     const token = localStorage.getItem("authToken");

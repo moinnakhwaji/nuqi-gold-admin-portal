@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import API_BASE_URL from '../config/api';
 
 const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', userId, bankId }) => {
   // Only log when we have actual data
@@ -78,7 +79,7 @@ const ReasonModal = ({ isOpen, onClose, onConfirm, title = 'Select Reason', user
         });
 
         const response = await axios.put(
-          `https://uatapi.nuqigold.com/user/onhold_bankKyc/${userId}`,
+          `${API_BASE_URL}/user/onhold_bankKyc/${userId}`,
           {
             status: 'on_hold',
             templateId,
